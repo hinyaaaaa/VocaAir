@@ -58,6 +58,15 @@
   --sh:0 14px 30px -10px rgba(8,12,24,.5);
   --sh-lg:0 24px 50px -14px rgba(8,12,24,.6);
 
+  /* ==== liquid glass — frosted panels over destination photography ==== */
+  --glass-fill:linear-gradient(160deg,rgba(255,255,255,.16),rgba(255,255,255,.05));
+  --glass-fill-strong:linear-gradient(160deg,rgba(255,255,255,.22),rgba(255,255,255,.08));
+  --glass-border:rgba(255,255,255,.30);
+  --glass-hi:inset 0 1px 0 rgba(255,255,255,.4);
+  --glass-lo:inset 0 -1px 0 rgba(0,0,0,.18);
+  --glass-sh:0 20px 50px -14px rgba(8,12,24,.65);
+  --glass-blur:blur(24px) saturate(170%);
+
   --font-display:'Zen Old Mincho',serif;
   --font:'Zen Kaku Gothic New','Noto Sans JP',sans-serif;
   --font-mono:'Space Mono',monospace;
@@ -94,6 +103,45 @@ body{
 #bg-overlay{position:fixed;inset:0;z-index:1;pointer-events:none;background:rgba(0,0,0,0);transition:background .3s}
 
 /* ============================================================
+   DESTINATION BACKGROUND — the real-world photo VocaAir flies toward.
+   Shown only on the boarding (check-in) and quiz (in-flight) screens;
+   fades in/out as the screen changes and crossfades between cities.
+   ============================================================ */
+#dest-bg{
+  position:fixed;inset:0;z-index:2;pointer-events:none;
+  background-size:cover;background-position:center;
+  opacity:0;transition:opacity .9s var(--land),background-image .1s;
+  filter:saturate(1.08);
+}
+#dest-bg.show{opacity:1}
+#dest-scrim{
+  position:fixed;inset:0;z-index:3;pointer-events:none;opacity:0;transition:opacity .9s var(--land);
+  background:
+    linear-gradient(180deg,rgba(20,12,18,.55) 0%,rgba(20,12,18,.25) 32%,rgba(20,12,18,.55) 78%,rgba(20,12,18,.82) 100%);
+}
+#dest-scrim.show{opacity:1}
+
+/* ============================================================
+   LIQUID GLASS — frosted panels that sit on top of the destination
+   photography (boarding pass, quiz card, result card, tabbar)
+   ============================================================ */
+.glass{
+  background:var(--glass-fill);
+  -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
+  border:1px solid var(--glass-border);
+  box-shadow:var(--glass-sh),var(--glass-hi),var(--glass-lo);
+  color:var(--cream);
+}
+.dest-badge{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:6px 14px 6px 8px;border-radius:99px;
+  font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--cream);
+}
+.dest-badge .db-dot{width:6px;height:6px;border-radius:50%;background:var(--gold);flex-shrink:0;animation:blink-dot 1.8s ease-in-out infinite}
+@keyframes blink-dot{0%,100%{opacity:1}50%{opacity:.35}}
+.dest-badge .db-city{color:var(--gold)}
+
+/* ============================================================
    SCREEN TRANSITIONS — weighty, app-like, never floaty
    ============================================================ */
 .app{display:flex;min-height:100vh}
@@ -110,29 +158,8 @@ body{
 }
 
 /* ============================================================
-   SIDEBAR — the passport cover
+   TABBAR — liquid glass, floating, replaces the old sidebar
    ============================================================ */
-.sidebar{
-  width:236px;min-height:100vh;
-  background:linear-gradient(160deg,var(--bg-2),var(--bg) 78%);
-  border-right:1px solid var(--navy-line);
-  box-shadow:2px 0 0 var(--gold-ghost);
-  display:flex;flex-direction:column;
-  position:fixed;top:0;left:0;z-index:20;
-  color:var(--cream-soft);
-}
-.sidebar-logo{
-  padding:26px 20px 20px;
-  border-bottom:none;
-  font-family:var(--font-display);
-  font-size:19px;font-weight:700;color:var(--gold);
-  letter-spacing:.14em;display:flex;align-items:center;gap:11px;
-}
-.sidebar-logo .logo-mark{width:32px;height:32px;flex-shrink:0;animation:emblem-in .8s var(--spring) .1s both}
-@keyframes emblem-in{from{opacity:0;transform:scale(.6) rotate(-14deg)}to{opacity:1;transform:scale(1) rotate(0)}}
-
-/* airmail stripe — red/indigo diagonal ticks on parchment, the recurring
-   travel-motif that ties gold + burgundy + paper together */
 .airmail-stripe{
   height:5px;
   background:repeating-linear-gradient(45deg,
@@ -141,66 +168,42 @@ body{
   flex-shrink:0;
 }
 
-.sidebar-clock{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:10px 20px;border-bottom:1px solid var(--navy-line);
-  font-family:var(--font-mono);
+.tabbar{
+  position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
+  z-index:40;display:flex;align-items:center;gap:2px;
+  padding:7px;border-radius:26px;
+  background:var(--glass-fill);
+  -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
+  border:1px solid var(--glass-border);
+  box-shadow:var(--glass-sh),var(--glass-hi),var(--glass-lo);
+  animation:tabbar-in .5s var(--land) both;
 }
-.sc-lbl{font-size:9px;letter-spacing:.14em;color:var(--cream-faint);opacity:.6}
-.sc-time{font-size:13px;color:var(--gold);letter-spacing:.04em;font-weight:700}
-
-.sidebar-nav{flex:1;padding:16px 12px}
+@keyframes tabbar-in{from{opacity:0;transform:translateX(-50%) translateY(16px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 .nav-item{
-  display:flex;align-items:center;gap:11px;
-  padding:11px 14px;border-radius:var(--r);
-  cursor:pointer;color:var(--cream-faint);font-size:13px;
-  transition:background .16s,color .16s,transform .1s var(--spring-soft);
-  border:none;background:none;width:100%;text-align:left;
-  font-family:var(--font);letter-spacing:.05em;font-weight:500;
-  animation:flip-in .4s var(--land) both;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  width:60px;padding:8px 4px 7px;border-radius:19px;
+  cursor:pointer;color:var(--cream-faint);font-size:9.5px;
+  transition:background .18s,color .16s,transform .18s var(--spring-soft);
+  border:none;background:none;text-align:center;
+  font-family:var(--font);letter-spacing:.03em;font-weight:600;
 }
-.sidebar-nav .nav-item:nth-child(1){animation-delay:.03s}
-.sidebar-nav .nav-item:nth-child(2){animation-delay:.08s}
-.sidebar-nav .nav-item:nth-child(3){animation-delay:.13s}
-.sidebar-nav .nav-item:nth-child(4){animation-delay:.18s}
-@keyframes flip-in{
-  0%{opacity:0;transform:rotateX(-70deg) translateY(-4px);transform-origin:top}
-  100%{opacity:1;transform:rotateX(0) translateY(0)}
-}
-.nav-item:hover{background:rgba(255,255,255,.05);color:var(--cream);transform:translateX(2px)}
-.nav-item:active{transform:translateX(2px) scale(.97)}
-.nav-item.active{background:var(--gold-soft);color:var(--gold);font-weight:700;box-shadow:inset 3px 0 0 var(--gold)}
-.nav-item .ni-icon{width:16px;height:16px;opacity:.75;flex-shrink:0}
+.nav-item:hover{background:rgba(255,255,255,.1);color:var(--cream)}
+.nav-item:active{transform:scale(.93)}
+.nav-item.active{background:var(--gold);color:#241a08;font-weight:800;box-shadow:0 3px 10px rgba(246,198,99,.4)}
+.nav-item .ni-icon{width:19px;height:19px;opacity:.8;flex-shrink:0}
 .nav-item.active .ni-icon{opacity:1}
-.ni-code{
-  font-family:var(--font-mono);font-size:11px;font-weight:700;
-  color:var(--cream-faint);opacity:.55;flex-shrink:0;width:16px;
+.ni-label{flex:1;min-width:0;white-space:nowrap}
+.tab-fab{
+  width:52px;height:52px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;margin:0 2px;
+  background:var(--gold);color:#241a08;border:none;cursor:pointer;
+  box-shadow:0 6px 16px rgba(246,198,99,.45),var(--glass-hi);
+  transition:transform .18s var(--spring-soft);
 }
-.nav-item.active .ni-code{color:var(--gold);opacity:1}
-.ni-label{flex:1;min-width:0}
-.ni-status{font-size:7px;color:var(--navy-line-2);flex-shrink:0;transition:color .2s}
-.nav-item.active .ni-status{color:var(--gold);animation:blink-dot 1.6s ease-in-out infinite}
-@keyframes blink-dot{0%,100%{opacity:1}50%{opacity:.3}}
+.tab-fab:hover{transform:scale(1.06) rotate(90deg)}
+.tab-fab:active{transform:scale(.94) rotate(90deg)}
 
-.sidebar-sep{height:1px;background:var(--navy-line);margin:10px 18px}
-.sidebar-section{padding:10px 18px 6px;font-size:10px;color:var(--cream-faint);letter-spacing:.18em;font-family:var(--font);font-weight:700}
-.sidebar-decks{padding:2px 12px 8px;max-height:300px;overflow-y:auto}
-.deck-nav{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:9px 12px;border-radius:var(--r);cursor:pointer;
-  font-size:13px;color:var(--cream-faint);transition:background .12s,transform .12s var(--spring-soft);
-  letter-spacing:.03em;font-family:var(--font);
-}
-.deck-nav:hover{background:rgba(255,255,255,.05);transform:translateX(2px)}
-.deck-nav.active{background:var(--gold-soft);color:var(--gold)}
-.dnav-badge{font-size:10px;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.08);color:var(--cream-faint);font-family:var(--font-mono)}
-.dnav-badge.due{background:var(--gold);color:#241a08;font-weight:700}
-
-.sidebar-footer{padding:14px 12px;border-top:1px solid var(--navy-line)}
-.sidebar-footer .nav-item{color:var(--cream-faint);font-size:13px}
-.sidebar-footer .nav-item:hover{color:var(--gold)}
-
-.main{margin-left:236px;flex:1;padding:44px 46px;max-width:920px;position:relative;z-index:10}
+.main{flex:1;padding:44px 46px 128px;max-width:920px;position:relative;z-index:10;margin:0 auto}
 
 /* ============================================================
    TYPOGRAPHY
@@ -214,7 +217,7 @@ body{
 .page-sub{font-size:12.5px;color:var(--cream-faint);margin-bottom:30px;letter-spacing:.05em;font-family:var(--font)}
 
 /* ============================================================
-   CARD — generic paper panel (settings, manage table wrapper)
+   CARD — generic paper panel (settings, import)
    ============================================================ */
 .card{
   background:var(--paper);color:var(--ink);
@@ -448,23 +451,23 @@ select.form-input option{background:#1a2c4d;color:var(--cream)}
    BOARDING SCREEN — 単語帳を選んだ後にモードを設定する搭乗手続き画面
    ============================================================ */
 .board-pass{
-  position:relative;background:var(--paper);border-radius:var(--r-lg);
-  box-shadow:var(--sh);overflow:hidden;max-width:520px;
+  position:relative;border-radius:var(--r-lg);
+  overflow:hidden;max-width:520px;
   animation:card-drop .5s var(--spring) both;
 }
-.board-body{padding:30px 32px 32px;color:var(--ink)}
+.board-body{padding:30px 32px 32px;color:var(--cream)}
 .board-deck-name{
   font-family:var(--font-display);font-weight:700;font-size:26px;
-  color:var(--ink);margin:10px 0 16px;letter-spacing:.03em;
+  color:var(--cream);margin:10px 0 16px;letter-spacing:.03em;
 }
-.board-stats{display:flex;gap:28px;padding-bottom:20px;margin-bottom:22px;border-bottom:1.5px dashed var(--line-2)}
+.board-stats{display:flex;gap:28px;padding-bottom:20px;margin-bottom:22px;border-bottom:1.5px dashed rgba(255,255,255,.25)}
 .board-stat{display:flex;flex-direction:column;gap:2px}
-.bs-num{font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--indigo)}
-.bs-lbl{font-size:11px;color:var(--ink-faint);letter-spacing:.06em;font-family:var(--font)}
+.bs-num{font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--gold)}
+.bs-lbl{font-size:11px;color:var(--cream-faint);letter-spacing:.06em;font-family:var(--font)}
 
 .board-section{margin-bottom:22px}
 .board-section-label{
-  font-size:11px;color:var(--ink-soft);letter-spacing:.14em;margin-bottom:10px;
+  font-size:11px;color:var(--cream-faint);letter-spacing:.14em;margin-bottom:10px;
   font-family:var(--font-mono);font-weight:700;
 }
 .board-section .mode-tab{padding:11px 4px}
@@ -472,22 +475,30 @@ select.form-input option{background:#1a2c4d;color:var(--cream)}
 
 .count-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .count-pill{
-  padding:9px 16px;border-radius:99px;border:1.8px solid var(--line-2);
-  background:var(--paper-2);color:var(--ink-soft);font-family:var(--font-mono);
+  padding:9px 16px;border-radius:99px;border:1.5px solid rgba(255,255,255,.25);
+  background:rgba(255,255,255,.06);color:var(--cream-soft);font-family:var(--font-mono);
   font-size:12.5px;font-weight:700;cursor:pointer;letter-spacing:.02em;
   transition:transform .12s var(--spring-soft),border-color .12s,background-color .12s,color .12s;
 }
-.count-pill:hover{border-color:var(--gold-deep)}
+.count-pill:hover{border-color:var(--gold)}
 .count-pill.active{background:var(--gold);border-color:var(--gold);color:#241a08;transform:scale(1.04)}
 
 .board-start-btn{width:100%;justify-content:center;font-size:16px;padding:16px;margin-top:6px}
-.board-warn{font-size:12.5px;color:var(--ink-faint);text-align:center;margin-top:10px;letter-spacing:.03em}
+.board-warn{font-size:12.5px;color:var(--cream-faint);text-align:center;margin-top:10px;letter-spacing:.03em}
+
+/* mode-tab lives on both the paper deck-grid AND the glass boarding
+   screen — keep the base look paper-flavoured, override on glass */
+.board-section .mode-tab{color:var(--cream-faint)}
+.board-section .mode-tabs{border-color:rgba(255,255,255,.25)}
+.board-section .mode-tab:not(.active){border-left-color:rgba(255,255,255,.18)}
+.board-section .mode-tab:hover:not(.active){background:rgba(255,255,255,.08);color:var(--cream)}
+.board-section .mode-tab.active{color:#241a08}
 
 /* the boarding-pass ticket that holds the question */
 .sentence-box{
-  background:var(--paper);border-radius:var(--r-lg);
-  padding:42px 34px 30px;margin-bottom:18px;box-shadow:var(--sh);
-  position:relative;color:var(--ink);overflow:visible;
+  border-radius:var(--r-lg);
+  padding:42px 34px 30px;margin-bottom:18px;
+  position:relative;color:var(--cream);overflow:visible;
 }
 .sentence-box.card-enter{animation:card-drop .5s var(--spring) both}
 @keyframes card-drop{
@@ -499,74 +510,77 @@ select.form-input option{background:#1a2c4d;color:var(--cream)}
   content:'';position:absolute;top:0;left:0;right:0;height:5px;z-index:0;
   border-radius:var(--r-lg) var(--r-lg) 0 0;overflow:hidden;
   background:repeating-linear-gradient(45deg,
-    var(--red) 0 9px, var(--paper) 9px 18px,
-    var(--indigo) 18px 27px, var(--paper) 27px 36px);
+    var(--red) 0 9px, rgba(255,255,255,.85) 9px 18px,
+    var(--indigo) 18px 27px, rgba(255,255,255,.85) 27px 36px);
+  opacity:.9;
 }
 .sentence-box .lbl{
-  font-size:11px;color:var(--indigo);letter-spacing:.16em;margin-bottom:16px;font-family:var(--font-mono);font-weight:700;text-align:center;
+  font-size:11px;color:var(--gold);letter-spacing:.16em;margin-bottom:16px;font-family:var(--font-mono);font-weight:700;text-align:center;
 }
 .sentence-text{
   font-family:var(--font-display);font-weight:700;
-  font-size:32px;line-height:1.5;color:var(--ink);letter-spacing:.03em;overflow-wrap:break-word;text-align:center;
+  font-size:32px;line-height:1.5;color:var(--cream);letter-spacing:.03em;overflow-wrap:break-word;text-align:center;
+  text-shadow:0 2px 12px rgba(0,0,0,.3);
 }
-.q-memo{margin-top:16px;text-align:center;font-size:11.5px;color:var(--ink-faint);font-family:var(--font);letter-spacing:.03em;font-style:italic}
+.q-memo{margin-top:16px;text-align:center;font-size:11.5px;color:var(--cream-faint);font-family:var(--font);letter-spacing:.03em;font-style:italic}
 
 .blank-input{
-  display:inline-block;border:2px solid var(--line-2);border-radius:8px;
-  background-color:rgba(0,0,0,.04);font-size:19px;color:var(--ink);
+  display:inline-block;border:2px solid rgba(255,255,255,.3);border-radius:8px;
+  background-color:rgba(255,255,255,.08);font-size:19px;color:var(--cream);
   outline:none;padding:6px 14px;vertical-align:middle;
   text-align:center;min-width:3.5ch;max-width:100%;font-family:var(--font-mono);
   letter-spacing:.04em;transition:border-color .15s,background-color .15s,transform .1s;
 }
-.blank-input::placeholder{color:var(--ink-faint)}
-.blank-input:focus{border-color:var(--gold-deep);box-shadow:0 0 0 3px var(--gold-soft)}
-.blank-input.correct{border-color:var(--indigo);background-color:var(--indigo-soft);color:var(--indigo);font-weight:700}
-.blank-input.wrong{border-color:var(--red);background-color:var(--red-soft);color:var(--red);font-weight:700}
+.blank-input::placeholder{color:var(--cream-faint)}
+.blank-input:focus{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-ghost)}
+.blank-input.correct{border-color:#7fd1b8;background-color:rgba(50,150,120,.22);color:#bdf0dd;font-weight:700}
+.blank-input.wrong{border-color:#e88;background-color:rgba(168,64,45,.28);color:#f4c2b5;font-weight:700}
 
 .input-answer-wrap{display:flex;justify-content:center;margin:6px 0 4px}
 .input-answer-wrap .blank-input{
   font-size:21px;min-width:12ch;padding:12px 20px;
-  background-color:var(--paper-2);color:var(--ink);
-  border-color:var(--line-2);box-shadow:0 3px 0 var(--paper-shadow);
+  background-color:rgba(255,255,255,.1);color:var(--cream);
+  border-color:rgba(255,255,255,.3);box-shadow:none;
 }
-.input-answer-wrap .blank-input::placeholder{color:var(--ink-faint)}
-.input-answer-wrap .blank-input:focus{box-shadow:0 3px 0 var(--paper-shadow),0 0 0 3px var(--gold-soft)}
-.input-answer-wrap .blank-input.correct{background-color:var(--indigo-soft);color:#22304c;border-color:var(--indigo)}
-.input-answer-wrap .blank-input.wrong{background-color:var(--red-soft);color:#7c2e1e;border-color:var(--red)}
+.input-answer-wrap .blank-input::placeholder{color:var(--cream-faint)}
+.input-answer-wrap .blank-input:focus{box-shadow:0 0 0 3px var(--gold-ghost)}
+.input-answer-wrap .blank-input.correct{background-color:rgba(50,150,120,.22);color:#bdf0dd;border-color:#7fd1b8}
+.input-answer-wrap .blank-input.wrong{background-color:rgba(168,64,45,.28);color:#f4c2b5;border-color:#e88}
 
 .choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:4px}
 .choice-btn{
-  padding:14px 18px 14px 14px;border-radius:var(--r);border:2px solid var(--line-2);
-  background:var(--paper-2);color:var(--ink);font-family:var(--font);font-size:15.5px;font-weight:500;
+  padding:14px 18px 14px 14px;border-radius:var(--r);border:1.5px solid rgba(255,255,255,.25);
+  background:rgba(255,255,255,.07);color:var(--cream);font-family:var(--font);font-size:15.5px;font-weight:500;
   letter-spacing:.02em;cursor:pointer;text-align:left;line-height:1.4;
   display:flex;align-items:center;gap:12px;
-  box-shadow:0 3px 0 var(--paper-shadow);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
   transition:transform .14s var(--spring),box-shadow .14s,border-color .14s,background-color .14s;
 }
 .choice-key{
   flex-shrink:0;width:24px;height:24px;border-radius:6px;
-  background:rgba(36,31,24,.08);color:var(--ink-soft);
+  background:rgba(255,255,255,.12);color:var(--cream-soft);
   display:flex;align-items:center;justify-content:center;
   font-family:var(--font-mono);font-size:12px;font-weight:700;
-  border:1px solid var(--line-2);
+  border:1px solid rgba(255,255,255,.25);
 }
-.choice-btn.correct .choice-key{background:var(--indigo);color:var(--paper);border-color:var(--indigo)}
-.choice-btn.wrong .choice-key{background:var(--red);color:var(--paper);border-color:var(--red)}
+.choice-btn.correct .choice-key{background:#3f9d7d;color:#fff;border-color:#3f9d7d}
+.choice-btn.wrong .choice-key{background:var(--red);color:#fff;border-color:var(--red)}
 .choice-label{flex:1;min-width:0}
-.choice-btn:hover:not(:disabled){border-color:var(--gold-deep);transform:translateY(-2px);box-shadow:0 5px 0 var(--paper-shadow)}
-.choice-btn:active:not(:disabled){transform:translateY(1px) scale(.98);box-shadow:0 1px 0 var(--paper-shadow)}
+.choice-btn:hover:not(:disabled){border-color:var(--gold);transform:translateY(-2px);background:rgba(255,255,255,.11)}
+.choice-btn:active:not(:disabled){transform:translateY(1px) scale(.98)}
 .choice-btn:disabled{cursor:default}
-.choice-btn.correct{border-color:var(--indigo);background:var(--indigo-soft);color:#22304c;font-weight:800;box-shadow:0 3px 0 var(--indigo)}
-.choice-btn.wrong{border-color:var(--red);background:var(--red-soft);color:#7c2e1e;font-weight:800;box-shadow:0 3px 0 var(--red)}
+.choice-btn.correct{border-color:#3f9d7d;background:rgba(50,150,120,.24);color:#d3f5e8;font-weight:800}
+.choice-btn.wrong{border-color:var(--red);background:rgba(168,64,45,.3);color:#f9d2c6;font-weight:800}
 @media (max-width:640px){.choice-grid{grid-template-columns:1fr}}
 
 .feedback{
   display:none;padding:14px 18px;border-radius:var(--r);
   font-size:13.5px;margin-bottom:16px;align-items:center;gap:10px;
   letter-spacing:.03em;font-family:var(--font);border:1.5px solid transparent;font-weight:700;
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
 }
-.feedback.ok{display:flex;background:var(--indigo-soft);color:#a9bde0;border-color:rgba(50,74,104,.4)}
-.feedback.ng{display:flex;background:var(--red-soft);color:#e3a08f;border-color:rgba(168,64,45,.4)}
+.feedback.ok{display:flex;background:rgba(50,150,120,.22);color:#c8f2e2;border-color:rgba(63,157,125,.5)}
+.feedback.ng{display:flex;background:rgba(168,64,45,.26);color:#f4c9bc;border-color:rgba(168,64,45,.5)}
 .feedback strong{font-family:var(--font-mono);font-size:15px}
 
 /* auto-grade-tag — 回答時間から自動推定した難易度(Hard/Good/Easy)を示す小さなバッジ */
@@ -631,7 +645,14 @@ kbd{
 /* ============================================================
    RESULT — the stamped passport photo page
    ============================================================ */
-.result-hero{text-align:center;padding:38px 0 26px;position:relative}
+.result-card{border-radius:var(--r-lg);padding:34px 30px 30px;max-width:520px;animation:card-drop .5s var(--spring) both}
+.result-hero{text-align:center;padding:4px 0 26px;position:relative}
+.result-next{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  margin-top:22px;padding-top:20px;border-top:1.5px dashed rgba(255,255,255,.25);
+  font-family:var(--font-mono);font-size:11.5px;color:var(--cream-faint);letter-spacing:.06em;
+}
+.result-next .rn-city{color:var(--gold);font-weight:700;font-size:13px}
 .result-pct{
   display:inline-flex;align-items:center;justify-content:center;
   width:172px;height:172px;border-radius:50%;
@@ -649,9 +670,9 @@ kbd{
 .result-pct::before{content:'';position:absolute;inset:9px;border-radius:50%;border:1.5px solid var(--gold);opacity:.55}
 .result-msg{font-family:var(--font-display);font-weight:700;font-size:16px;color:var(--cream);margin-top:18px;letter-spacing:.05em}
 .result-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:24px 0}
-.stat-box{background:var(--paper);border-radius:var(--r);padding:18px 10px;text-align:center;color:var(--ink);box-shadow:var(--sh)}
-.stat-num{font-family:var(--font-mono);font-size:26px;font-weight:700;color:var(--indigo)}
-.stat-lbl{font-size:10.5px;color:var(--ink-faint);margin-top:5px;letter-spacing:.06em;font-family:var(--font)}
+.stat-box{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);border-radius:var(--r);padding:18px 10px;text-align:center;color:var(--cream)}
+.stat-num{font-family:var(--font-mono);font-size:26px;font-weight:700;color:var(--gold)}
+.stat-lbl{font-size:10.5px;color:var(--cream-faint);margin-top:5px;letter-spacing:.06em;font-family:var(--font)}
 
 /* ============================================================
    IMPORT
@@ -676,33 +697,10 @@ kbd{
 .preview-table tr:hover td{background:rgba(0,0,0,.03)}
 
 /* ============================================================
-   MANAGE
-   ============================================================ */
-.manage-toolbar{display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-wrap:wrap}
-.word-table{width:100%;border-collapse:collapse;font-size:13px;color:var(--ink)}
-.word-table th{text-align:left;padding:12px 16px;font-size:10px;color:var(--ink-soft);border-bottom:2px solid var(--line-2);letter-spacing:.1em;font-weight:700;font-family:var(--font)}
-.word-table td{padding:12px 16px;border-bottom:1px solid var(--line);vertical-align:top}
-.word-table tr:last-child td{border-bottom:none}
-.word-table tr:hover td{background:rgba(0,0,0,.025)}
-.due-tag{font-size:11px;padding:3px 11px;border-radius:99px;letter-spacing:.03em;font-family:var(--font);font-weight:700;white-space:nowrap}
-.due-tag.today{background:var(--red-soft);color:#7c2e1e}
-.due-tag.later{background:rgba(0,0,0,.05);color:var(--ink-faint)}
-.flag-dot{color:var(--red);margin-right:3px}
-.flag-row td{background:var(--red-soft)}
-.srs-badge{font-size:10px;padding:2px 8px;border-radius:5px;letter-spacing:.04em;font-family:var(--font-mono);font-weight:700;white-space:nowrap}
-.srs-badge.new{background:rgba(0,0,0,.06);color:var(--ink-faint)}
-.srs-badge.learning{background:var(--gold-soft);color:#8a6414}
-.srs-badge.review{background:var(--indigo-soft);color:#22304c}
-
-/* ============================================================
    SETTINGS
    ============================================================ */
 .settings-section{margin-bottom:28px}
 .settings-label{font-size:11px;color:var(--ink-soft);letter-spacing:.1em;margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid var(--line);font-family:var(--font);font-weight:800}
-.dim-row{display:flex;align-items:center;gap:14px;margin-top:12px}
-.dim-label{font-size:13px;color:var(--ink-soft);letter-spacing:.04em;min-width:80px;font-family:var(--font)}
-input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:4px;background:var(--line-2);border-radius:2px;outline:none;cursor:pointer}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--gold);cursor:pointer;border:3px solid var(--paper);box-shadow:0 0 0 1.5px var(--gold-deep)}
 
 /* ============================================================
    MODAL — passport visa application slip
@@ -754,33 +752,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
 ::-webkit-scrollbar-thumb:hover{background:var(--gold-deep)}
 
 /* ============================================================
-   MOBILE HEADER & DRAWER
-   ============================================================ */
-.mobile-header{display:none}
-.mobile-menu-btn{background:none;border:none;color:var(--cream);cursor:pointer;padding:8px;border-radius:var(--r);display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
-.mobile-menu-btn:active{background:rgba(255,255,255,.08)}
-.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(8,12,24,.6);z-index:55}
-.sidebar-overlay.open{display:block}
-
-/* ============================================================
    RESPONSIVE — MOBILE
    ============================================================ */
 @media(max-width:760px){
-  .mobile-header{
-    display:flex;align-items:center;justify-content:space-between;
-    position:fixed;top:0;left:0;right:0;height:56px;
-    background:var(--bg-2);box-shadow:0 1px 0 var(--navy-line);z-index:50;padding:0 8px 0 14px;
-  }
-  .mobile-header .sidebar-logo{font-size:17px;gap:8px;border-bottom:none;padding:0;color:var(--gold)}
-  .mobile-header .logo-mark{width:28px;height:28px}
-  .mobile-menu-btn{color:var(--cream-soft)}
+  .main{padding:28px 16px 120px;max-width:100%}
 
-  .sidebar{left:-100%;transition:left .3s var(--land);z-index:60;box-shadow:0 0 32px rgba(0,0,0,.6);width:78vw;max-width:280px}
-  .sidebar.open{left:0}
-
-  .main{margin-left:0;padding:72px 16px 40px;max-width:100%}
-
-  .nav-item{padding:13px 14px;font-size:15px}
+  .tabbar{bottom:14px;gap:0;padding:6px}
+  .nav-item{width:52px;font-size:9px}
   .nav-item .ni-icon{width:18px;height:18px}
   .btn{padding:11px 18px;font-size:14.5px;min-height:44px}
   .btn.sm{padding:8px 14px;font-size:13px;min-height:38px}
@@ -818,14 +796,6 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
   .format-guide{padding:14px}
   .format-guide table{font-size:12px}
 
-  .manage-toolbar{flex-direction:column;align-items:stretch}
-  .manage-toolbar select{width:100% !important}
-  .word-table{font-size:12.5px}
-  .word-table th, .word-table td{padding:10px 8px}
-
-  .dim-row{flex-wrap:wrap;gap:10px}
-  .dim-label{min-width:auto}
-
   .modal{padding:22px 20px;width:92vw}
   .new-deck-card{min-height:120px}
   .card{padding:20px 18px}
@@ -838,8 +808,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
 }
 
 @media (prefers-reduced-motion: reduce){
-  .screen.active,.deck-card,.sentence-box,.result-pct,.sidebar-logo .logo-mark,.page-title{animation:none !important}
-  .btn,.choice-btn,.nav-item,.deck-nav{transition:none !important}
+  .screen.active,.deck-card,.sentence-box,.result-pct,.brand-mark,.page-title{animation:none !important}
+  .btn,.choice-btn,.nav-item{transition:none !important}
 }
 
 </style>
@@ -848,85 +818,11 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
 
 <!-- Background layers -->
 <div id="bg-layer"></div>
+<div id="dest-bg"></div>
+<div id="dest-scrim"></div>
 <div id="bg-overlay"></div>
 
-<!-- Mobile header -->
-<header class="mobile-header">
-  <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="メニュー">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-  </button>
-  <div class="sidebar-logo" style="border-bottom:none;padding:0">
-    <svg class="logo-mark" viewBox="-60 -60 120 120" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="0" cy="-2" r="44" fill="none" stroke="#f6c663" stroke-width="4" opacity="0.5"/>
-      <circle cx="0" cy="-2" r="34" fill="none" stroke="#f6c663" stroke-width="6"/>
-      <path d="M-16,-2 L-2,12 L20,-16" fill="none" stroke="#f6c663" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-      <line x1="-40" y1="-2" x2="-30" y2="-2" stroke="#f6c663" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
-      <line x1="30" y1="-2" x2="40" y2="-2" stroke="#f6c663" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
-      <line x1="0" y1="-42" x2="0" y2="-32" stroke="#f6c663" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
-    </svg>
-    VocaAir
-  </div>
-  <div style="width:38px"></div>
-</header>
-
-<!-- Sidebar drawer overlay (mobile) -->
-<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
-
 <div class="app">
-<!-- ====================================================
-     SIDEBAR
-     ==================================================== -->
-<aside class="sidebar">
-  <div class="sidebar-logo">
-    <svg class="logo-mark" viewBox="-60 -60 120 120" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="0" cy="-2" r="44" fill="none" stroke="#f6c663" stroke-width="4" opacity="0.5"/>
-      <circle cx="0" cy="-2" r="34" fill="none" stroke="#f6c663" stroke-width="6"/>
-      <path d="M-16,-2 L-2,12 L20,-16" fill="none" stroke="#f6c663" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-      <line x1="-40" y1="-2" x2="-30" y2="-2" stroke="#f6c663" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
-      <line x1="30" y1="-2" x2="40" y2="-2" stroke="#f6c663" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
-      <line x1="0" y1="-42" x2="0" y2="-32" stroke="#f6c663" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
-    </svg>
-    VocaAir
-  </div>
-  <div class="airmail-stripe"></div>
-  <div class="sidebar-clock">
-    <span class="sc-lbl">LOCAL TIME</span>
-    <span class="sc-time" id="sidebar-clock">--:--:--</span>
-  </div>
-  <nav class="sidebar-nav">
-    <button class="nav-item active" id="nav-home" onclick="showScreen('home')">
-      <span class="ni-code">01</span>
-      <span class="ni-label">単語帳一覧</span>
-      <span class="ni-status">●</span>
-    </button>
-    <button class="nav-item" id="nav-import" onclick="showScreen('import')">
-      <span class="ni-code">02</span>
-      <span class="ni-label">Excelで追加</span>
-      <span class="ni-status">●</span>
-    </button>
-    <button class="nav-item" id="nav-manage" onclick="showScreen('manage')">
-      <span class="ni-code">03</span>
-      <span class="ni-label">単語を管理</span>
-      <span class="ni-status">●</span>
-    </button>
-    <button class="nav-item" id="nav-settings" onclick="showScreen('settings')">
-      <span class="ni-code">04</span>
-      <span class="ni-label">設定</span>
-      <span class="ni-status">●</span>
-    </button>
-  </nav>
-  <div class="sidebar-sep"></div>
-  <div class="sidebar-section">単語帳 · GATES</div>
-  <div class="sidebar-decks" id="sidebar-decks"></div>
-  <div class="sidebar-footer">
-    <button class="nav-item" onclick="openNewDeckModal()">
-      <svg class="ni-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      新しい単語帳
-    </button>
-    <p style="font-size:10px;color:var(--ink-faint);letter-spacing:.06em;padding:6px 14px 2px;opacity:.5">v2.4.1</p>
-  </div>
-</aside>
-
 <!-- ====================================================
      MAIN
      ==================================================== -->
@@ -942,7 +838,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
   <!-- ── BOARDING (学習モード設定) ── -->
   <div id="screen-board" class="screen">
     <button class="q-back" onclick="showScreen('home')" style="margin-bottom:24px">← 単語帳一覧</button>
-    <div class="board-pass" id="board-pass"></div>
+    <div class="board-pass glass" id="board-pass"></div>
   </div>
 
   <!-- ── QUIZ ── -->
@@ -960,7 +856,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
         </div>
       </div>
     </div>
-    <div class="sentence-box" id="q-card">
+    <div class="sentence-box glass" id="q-card">
       <div class="lbl" id="q-prompt-label">日 本 語 訳</div>
       <div class="sentence-text" id="q-prompt" style="text-align:center"></div>
       <div class="q-memo" id="q-memo" style="display:none"></div>
@@ -983,18 +879,23 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
 
   <!-- ── RESULT ── -->
   <div id="screen-result" class="screen">
-    <div class="result-hero">
-      <div class="result-pct" id="res-pct"></div>
-      <div class="result-msg" id="res-msg"></div>
-    </div>
-    <div class="result-stats">
-      <div class="stat-box"><div class="stat-num" id="res-ok"></div><div class="stat-lbl">正　解</div></div>
-      <div class="stat-box"><div class="stat-num" id="res-ng"></div><div class="stat-lbl">不 正 解</div></div>
-      <div class="stat-box"><div class="stat-num" id="res-interval"></div><div class="stat-lbl">次回まで（日）</div></div>
-    </div>
-    <div class="btn-row" style="justify-content:center">
-      <button class="btn primary" onclick="restartQuiz()">もう一度</button>
-      <button class="btn ghost" onclick="showScreen('home')">一覧へ戻る</button>
+    <div class="result-card glass">
+      <div class="result-hero">
+        <div class="result-pct" id="res-pct"></div>
+        <div class="result-msg" id="res-msg"></div>
+      </div>
+      <div class="result-stats">
+        <div class="stat-box"><div class="stat-num" id="res-ok"></div><div class="stat-lbl">正　解</div></div>
+        <div class="stat-box"><div class="stat-num" id="res-ng"></div><div class="stat-lbl">不 正 解</div></div>
+        <div class="stat-box"><div class="stat-num" id="res-interval"></div><div class="stat-lbl">次回まで（日）</div></div>
+      </div>
+      <div class="btn-row" style="justify-content:center">
+        <button class="btn primary" onclick="restartQuiz()">もう一度</button>
+        <button class="btn ghost" onclick="showScreen('home')">一覧へ戻る</button>
+      </div>
+      <div class="result-next" id="res-next" style="display:none">
+        <span>次 の 目 的 地</span><span class="rn-city" id="res-next-city"></span>
+      </div>
     </div>
   </div>
 
@@ -1073,60 +974,11 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
     </div>
   </div>
 
-  <!-- ── MANAGE ── -->
-  <div id="screen-manage" class="screen">
-    <h1 class="page-title">単語を管理</h1>
-    <p class="page-sub">単語・意味・メモの確認、編集、削除ができます</p>
-    <div class="manage-toolbar">
-      <select class="form-input" id="manage-deck-select" style="width:180px" onchange="renderManage()"></select>
-      <select class="form-input" id="manage-status-filter" style="width:180px" onchange="renderManage()">
-        <option value="all">すべて表示</option>
-        <option value="flag">⚠ 要確認</option>
-        <option value="leech">🐛 苦手（リーチ）</option>
-        <option value="new">🆕 未学習</option>
-        <option value="learning">📗 学習中</option>
-      </select>
-      <input class="form-input" id="manage-search" type="text" placeholder="単語・意味で検索…" style="flex:1" oninput="renderManage()">
-    </div>
-    <div class="card flush" style="overflow-x:auto">
-      <table class="word-table">
-        <thead><tr><th>単語</th><th>意味</th><th>メモ</th><th>次回復習</th><th></th></tr></thead>
-        <tbody id="manage-body"></tbody>
-      </table>
-    </div>
-  </div>
-
   <!-- ── SETTINGS ── -->
   <div id="screen-settings" class="screen">
     <h1 class="page-title">設定</h1>
-    <p class="page-sub">背景と表示の設定</p>
 
     <div class="card">
-      <div class="settings-section">
-        <div class="settings-label">背 景 画 像</div>
-        <p style="font-size:13px;color:var(--ink-soft);margin-bottom:12px;letter-spacing:.03em">画像ファイルを選択してください（JPG・PNG・WebP）。この端末に保存され、次回も表示されます。</p>
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-          <button class="btn sm" onclick="document.getElementById('bg-file').click()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            画像をアップロード
-          </button>
-          <button class="btn sm ghost" onclick="clearBg()">背景をなしにする</button>
-          <span id="bg-filename" style="font-size:12px;color:var(--ink-faint);letter-spacing:.03em"></span>
-        </div>
-        <input type="file" id="bg-file" accept="image/*" style="display:none" onchange="uploadBg(this)">
-      </div>
-
-      <div class="settings-section" style="margin-top:24px">
-        <div class="settings-label">背 景 の 暗 さ</div>
-        <div class="dim-row">
-          <span class="dim-label">明　←　暗</span>
-          <input type="range" id="dim-slider" min="0" max="0.95" step="0.01" value="0.45" oninput="setDim(this.value)">
-          <span id="dim-val" style="font-size:12px;color:var(--ink-faint);min-width:36px;text-align:right">45%</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="card" style="margin-top:14px">
       <div class="settings-section" style="margin-bottom:0">
         <div class="settings-label">データのバックアップ</div>
         <p style="font-size:13px;color:var(--ink-soft);margin-bottom:14px;letter-spacing:.03em">
@@ -1150,6 +1002,27 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
 
 </main>
 </div>
+
+<!-- ====================================================
+     TABBAR — liquid glass, replaces the sidebar
+     ==================================================== -->
+<nav class="tabbar glass">
+  <button class="nav-item active" id="nav-home" onclick="showScreen('home')">
+    <svg class="ni-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+    <span class="ni-label">一覧</span>
+  </button>
+  <button class="nav-item" id="nav-import" onclick="showScreen('import')">
+    <svg class="ni-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    <span class="ni-label">追加</span>
+  </button>
+  <button class="tab-fab" onclick="openNewDeckModal()" aria-label="新しい単語帳">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+  <button class="nav-item" id="nav-settings" onclick="showScreen('settings')">
+    <svg class="ni-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    <span class="ni-label">設定</span>
+  </button>
+</nav>
 
 <!-- ====================================================
      MODALS
@@ -1178,29 +1051,6 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
     <div class="modal-actions">
       <button class="btn ghost" onclick="closeModal('modal-confirm')">キャンセル</button>
       <button class="btn" id="confirm-ok-btn" style="background:var(--vermilion-soft);color:var(--vermilion);border-color:rgba(200,80,80,.3)">削除する</button>
-    </div>
-  </div>
-</div>
-
-<!-- Edit word -->
-<div class="modal-overlay" id="modal-edit-word">
-  <div class="modal">
-    <div class="modal-title">単語を編集</div>
-    <div class="form-group">
-      <label class="form-label">単語</label>
-      <input class="form-input" id="edit-word-word" type="text">
-    </div>
-    <div class="form-group">
-      <label class="form-label">意味</label>
-      <input class="form-input" id="edit-word-trans" type="text">
-    </div>
-    <div class="form-group">
-      <label class="form-label">メモ（任意・出典など）</label>
-      <input class="form-input" id="edit-word-memo" type="text">
-    </div>
-    <div class="modal-actions">
-      <button class="btn ghost" onclick="closeModal('modal-edit-word')">キャンセル</button>
-      <button class="btn primary" onclick="saveEditWord()">保存する</button>
     </div>
   </div>
 </div>
@@ -1299,7 +1149,6 @@ function importBackup(input) {
         localStorage.removeItem('vq_session');
         toast('復元しました');
         input.value = '';
-        updateOverlay();
         renderAll();
         showScreen('home');
       },
@@ -1470,21 +1319,9 @@ function confirm(msg, sub, onOk, icon='🗑️') {
 }
 
 /* ============================================================
-   MOBILE SIDEBAR DRAWER
-   ============================================================ */
-function toggleSidebar() {
-  document.querySelector('.sidebar').classList.toggle('open');
-  document.getElementById('sidebar-overlay').classList.toggle('open');
-}
-function closeSidebar() {
-  document.querySelector('.sidebar').classList.remove('open');
-  document.getElementById('sidebar-overlay').classList.remove('open');
-}
-
-/* ============================================================
    NAVIGATION
    ============================================================ */
-const NAV = { home:'nav-home', import:'nav-import', manage:'nav-manage', settings:'nav-settings', quiz:'nav-home', result:'nav-home' };
+const NAV = { home:'nav-home', import:'nav-import', settings:'nav-settings', quiz:'nav-home', result:'nav-home', board:'nav-home' };
 function showScreen(id) {
   // クイズ以外の画面に移る場合、正解後の自動送りタイマーが残っていたら破棄する
   // (残したままだと、後で戻ってきた時に無関係なカードが1枚飛ばされてしまう)
@@ -1495,9 +1332,8 @@ function showScreen(id) {
   const nid = NAV[id]; if (nid) document.getElementById(nid).classList.add('active');
   if (id === 'home') renderHome();
   if (id === 'import') { clearImport(); populateImportDeckSelect(); }
-  if (id === 'manage') { populateManageDeckSelect(); renderManage(); }
   if (id === 'settings') initSettings();
-  closeSidebar();
+  showDestinationLayer(id === 'board' || id === 'quiz' || id === 'result');
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
@@ -1507,7 +1343,6 @@ function showScreen(id) {
 let _newDeckCtx = null;
 function openNewDeckModal(ctx) {
   _newDeckCtx = ctx || null;
-  closeSidebar();
   document.getElementById('new-deck-name').value = '';
   document.getElementById('modal-new-deck').classList.add('open');
   setTimeout(() => document.getElementById('new-deck-name').focus(), 60);
@@ -1535,28 +1370,6 @@ function createDeck() {
     populateImportDeckSelect();
     document.getElementById('import-deck-select').value = id;
   }
-}
-
-/* ============================================================
-   SIDEBAR
-   ============================================================ */
-function renderSidebar() {
-  const decks = loadDecks();
-  const words = loadWords();
-  const now = Date.now();
-  const el = document.getElementById('sidebar-decks');
-  if (!decks.length) {
-    el.innerHTML = '<p style="font-size:12px;color:var(--ink-faint);padding:6px 12px;letter-spacing:.04em">まだありません</p>';
-    return;
-  }
-  el.innerHTML = decks.map(d => {
-    const dw = words.filter(w => w.deckId === d.id);
-    const due = dw.filter(w => (w.nextDue||0) <= now).length;
-    return `<div class="deck-nav" onclick="showScreen('home')">
-      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.name)}</span>
-      <span class="dnav-badge${due>0?' due':''}">${due>0?due:dw.length}</span>
-    </div>`;
-  }).join('');
 }
 
 /* ============================================================
@@ -1666,6 +1479,7 @@ let _boardingDeckId = null;
 function openBoarding(deckId) {
   _boardingDeckId = deckId;
   renderBoardScreen(deckId);
+  applyDestinationBackground(deckId);
   showScreen('board');
 }
 
@@ -1701,11 +1515,13 @@ function renderBoardScreen(deckId) {
     `<button class="count-pill ${count===c?'active':''}" onclick="setBoardCount(${deckId},${c})">${c}問</button>`
   ).join('') + `<button class="count-pill ${count===0?'active':''}" onclick="setBoardCount(${deckId},0)">全部（${total}問）</button>`;
 
+  const dest = getCurrentDestination(deckId);
+
   pass.innerHTML = `
     <div class="airmail-stripe"></div>
     <div class="board-body">
       <div class="dc-eyebrow-row">
-        <span class="dc-eyebrow">VOCA AIR · CHECK-IN</span>
+        <span class="dest-badge"><span class="db-dot"></span>目的地 <span class="db-city">${esc(dest.city)}</span></span>
         <span class="dc-gate">GATE ${gate}</span>
       </div>
       <div class="board-deck-name">${esc(deck.name)}</div>
@@ -1807,6 +1623,7 @@ function getDistractors(deckId, excludeId, field, correctVal, count) {
 function startQuizDeck(deckId, forceNew) {
   if (qAdvanceTimer) { clearTimeout(qAdvanceTimer); qAdvanceTimer = null; }
   qDeckId = deckId;
+  applyDestinationBackground(deckId);
   const mode = getMode(deckId);
   let direction = getDirection(deckId);
   let format = getFormat(deckId);
@@ -2108,6 +1925,22 @@ function showResult() {
   document.getElementById('res-ng').textContent = qNg;
   const avg = qWords.length ? Math.round(qWords.reduce((s,w) => s+(w.interval||1), 0) / qWords.length) : 1;
   document.getElementById('res-interval').textContent = avg;
+
+  // 1周（1セッション完了）ごとに次の目的地へ。到着した目的地の写真を背景にしたまま、
+  // 「次はここへ向かう」というカードを見せてから、実際の切り替えを行う
+  if (qDeckId != null) {
+    const arrived = getCurrentDestination(qDeckId);
+    advanceDeckLap(qDeckId);
+    const next = getCurrentDestination(qDeckId);
+    const nextEl = document.getElementById('res-next');
+    const nextCityEl = document.getElementById('res-next-city');
+    if (next.city !== arrived.city) {
+      nextCityEl.textContent = next.city;
+      nextEl.style.display = 'flex';
+    } else {
+      nextEl.style.display = 'none';
+    }
+  }
 }
 
 /* ============================================================
@@ -2230,284 +2063,82 @@ function clearImport() {
 }
 
 /* ============================================================
-   MANAGE
+   DESTINATIONS — a real-world "flight path" VocaAir travels along.
+   Every completed study session advances the deck one stop further.
+   Photography is fetched live from Wikipedia (no guessed/broken
+   links) and cached in localStorage after the first load.
    ============================================================ */
-function populateManageDeckSelect() {
-  const sel = document.getElementById('manage-deck-select');
-  const decks = loadDecks();
-  sel.innerHTML = decks.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
-  if (!decks.length) sel.innerHTML = '<option value="">（単語帳がありません）</option>';
+const DESTINATIONS = [
+  { city: '東京',         title: '東京タワー' },
+  { city: '京都',         title: '伏見稲荷大社' },
+  { city: 'パリ',         title: 'エッフェル塔' },
+  { city: 'ニューヨーク',   title: '自由の女神像' },
+  { city: 'ロンドン',      title: 'ビッグ・ベン' },
+  { city: 'ローマ',        title: 'コロッセオ' },
+  { city: 'サントリーニ',   title: 'サントリーニ島' },
+  { city: 'シドニー',      title: 'シドニー・オペラハウス' },
+  { city: 'リオデジャネイロ', title: 'コルコバードのキリスト像' },
+  { city: 'カイロ',        title: 'ギザの大ピラミッド' },
+  { city: 'マチュ・ピチュ',  title: 'マチュ・ピチュ' },
+  { city: 'ドバイ',        title: 'ブルジュ・ハリファ' },
+];
+const DEST_PROGRESS_KEY = 'vq_dest_progress';
+const DEST_IMG_CACHE_KEY = 'vq_dest_img_cache';
+
+function getDeckProgress() { return LS.get(DEST_PROGRESS_KEY) || {}; }
+function getDeckLap(deckId) { return getDeckProgress()[deckId] || 0; }
+function advanceDeckLap(deckId) {
+  const p = getDeckProgress();
+  p[deckId] = (p[deckId] || 0) + 1;
+  LS.set(DEST_PROGRESS_KEY, p);
+}
+function getCurrentDestination(deckId) {
+  return DESTINATIONS[getDeckLap(deckId) % DESTINATIONS.length];
 }
 
-// 単語と意味が明らかに不一致と思われるものを検出する簡易ヒューリスティック。
-// 完全な意味判定はできないため、あくまで「確認を促す」ためのものとして扱う。
-function looksSuspicious(w) {
-  const trans = (w.trans||'').trim();
-  if (!trans) return true;
-  if (normalizeKey(trans) === normalizeKey(w.word||'')) return true;
-  // 意味に日本語の文字（ひらがな・カタカナ・漢字）が一切含まれない場合は要確認
-  if (!/[\u3040-\u30FF\u3400-\u9FFF]/.test(trans)) return true;
-  return false;
-}
-function isFlagged(w) { return !w.reviewOk && looksSuspicious(w); }
-
-function renderManage() {
-  const deckId = parseInt(document.getElementById('manage-deck-select').value);
-  const q = document.getElementById('manage-search').value.trim().toLowerCase();
-  const statusFilter = document.getElementById('manage-status-filter').value;
-  let words = loadWords().filter(w => w.deckId === deckId).map(ensureSrsFields);
-
-  const flaggedCount = words.filter(isFlagged).length;
-  const leechCount = words.filter(w => w.leech).length;
-  const statusOpt = document.querySelector('#manage-status-filter option[value="flag"]');
-  if (statusOpt) statusOpt.textContent = `⚠ 要確認（${flaggedCount}）`;
-  const leechOpt = document.querySelector('#manage-status-filter option[value="leech"]');
-  if (leechOpt) leechOpt.textContent = `🐛 苦手（リーチ）（${leechCount}）`;
-
-  if (statusFilter === 'flag') words = words.filter(isFlagged);
-  if (statusFilter === 'leech') words = words.filter(w => w.leech);
-  if (statusFilter === 'new') words = words.filter(w => w.state === 'new');
-  if (statusFilter === 'learning') words = words.filter(w => w.state === 'learning' || w.state === 'relearning');
-  if (q) words = words.filter(w =>
-    w.word.toLowerCase().includes(q) ||
-    (w.trans||'').toLowerCase().includes(q)
-  );
-
-  const tbody = document.getElementById('manage-body');
-  if (!words.length) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:28px;color:var(--ink-faint);letter-spacing:.06em">該当する単語がありません</td></tr>`;
-    return;
-  }
-  tbody.innerHTML = words.map(w => {
-    const days = daysUntil(w.nextDue||0);
-    const flagged = isFlagged(w);
-    const stateBadge = w.state === 'new' ? '<span class="srs-badge new">未学習</span>'
-      : (w.state === 'learning' || w.state === 'relearning') ? '<span class="srs-badge learning">学習中</span>'
-      : '<span class="srs-badge review">習得中</span>';
-    const leechBadge = w.leech ? '<span class="flag-dot" title="何度も間違えています(リーチ)">🐛</span>' : '';
-    return `<tr class="${flagged ? 'flag-row' : ''}">
-      <td style="font-weight:500;letter-spacing:.04em">${flagged ? '<span class="flag-dot" title="単語と意味が一致しない可能性があります">⚠</span>' : ''}${leechBadge}${esc(w.word)}</td>
-      <td style="color:var(--ink-soft)">${esc(w.trans)}</td>
-      <td style="color:var(--ink-faint);font-size:12px;max-width:180px;white-space:normal;overflow-wrap:break-word">${esc(w.memo||'')}</td>
-      <td>${stateBadge}<br><span class="due-tag ${days===0?'today':'later'}" style="margin-top:4px;display:inline-block">${days===0?'今日':days+'日後'}</span></td>
-      <td style="white-space:nowrap">
-        <button class="btn sm ghost" onclick="openEditWordModal('${w.id}')">編集</button>
-        ${flagged ? `<button class="btn sm" style="background:var(--gold-soft);color:var(--gold);border-color:transparent" onclick="resolveFlag('${w.id}')">確認済み</button>` : ''}
-        ${w.leech ? `<button class="btn sm" style="background:var(--indigo-soft);color:#22304c;border-color:transparent" onclick="resetLeech('${w.id}')">リセット</button>` : ''}
-        <button class="btn sm danger-ghost" onclick="confirmDeleteWord('${w.id}','${esc(w.word)}')">削除</button>
-      </td>
-    </tr>`;
-  }).join('');
-}
-
-function resetLeech(id) {
-  const words = loadWords();
-  const i = words.findIndex(x => String(x.id) === String(id));
-  if (i < 0) return;
-  words[i].leech = false;
-  words[i].lapses = 0;
-  saveWords(words);
-  toast('リーチ状態を解除しました');
-  renderManage();
-}
-
-function resolveFlag(id) {
-  const words = loadWords();
-  const i = words.findIndex(x => String(x.id) === String(id));
-  if (i < 0) return;
-  words[i].reviewOk = true;
-  saveWords(words);
-  toast('要確認から外しました');
-  renderManage();
-}
-
-let _editWordId = null;
-function openEditWordModal(id) {
-  const w = loadWords().find(x => String(x.id) === String(id));
-  if (!w) return;
-  _editWordId = id;
-  document.getElementById('edit-word-word').value = w.word || '';
-  document.getElementById('edit-word-trans').value = w.trans || '';
-  document.getElementById('edit-word-memo').value = w.memo || '';
-  document.getElementById('modal-edit-word').classList.add('open');
-}
-
-function saveEditWord() {
-  const word = document.getElementById('edit-word-word').value.trim();
-  const trans = document.getElementById('edit-word-trans').value.trim();
-  const memo = document.getElementById('edit-word-memo').value.trim();
-  if (!word || !trans) { toast('単語・意味は必須です'); return; }
-  const words = loadWords();
-  const i = words.findIndex(x => String(x.id) === String(_editWordId));
-  if (i < 0) { closeModal('modal-edit-word'); return; }
-  words[i].word = word;
-  words[i].trans = trans;
-  words[i].memo = memo;
-  saveWords(words);
-  closeModal('modal-edit-word');
-  toast('更新しました');
-  renderManage();
-}
-
-function confirmDeleteWord(id, word) {
-  confirm(`「${word}」を削除しますか？`, 'この操作は元に戻せません', () => deleteWord(id));
-}
-function deleteWord(id) {
-  saveWords(loadWords().filter(w => String(w.id) !== String(id)));
-  renderManage();
-  renderSidebar();
-  toast('削除しました');
-}
-
-/* ============================================================
-   SETTINGS — Background & Dim (IndexedDB for persistence)
-   ------------------------------------------------------------
-   NOTE: the background is applied as a base64 data: URL, not a
-   blob: object URL. blob: URLs are tied to the page's in-memory
-   registry and can silently fail to resolve on iOS Safari after
-   a reload or when the app is launched standalone from the home
-   screen (the image just doesn't appear, with no error). A data:
-   URL is self-contained in the CSS value itself, so it always
-   resolves regardless of session/navigation.
-   ============================================================ */
-const BG_DB = 'vq_bg_db', BG_STORE = 'bg';
-let _hasBgImage = false;
-
-function openBgDB() {
-  return new Promise((resolve, reject) => {
-    if (typeof indexedDB === 'undefined') { reject(new Error('indexedDB unavailable')); return; }
-    const req = indexedDB.open(BG_DB, 1);
-    req.onupgradeneeded = () => { try { req.result.createObjectStore(BG_STORE); } catch(e){} };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-    req.onblocked = () => reject(new Error('indexedDB blocked'));
-  });
-}
-function blobToDataUrl(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
-}
-async function saveBgImage(blob) {
+function getDestImgCache() { return LS.get(DEST_IMG_CACHE_KEY) || {}; }
+// Wikipedia の pageimages API から目的地の写真を取得する。一度取得した画像は
+// localStorage にキャッシュし、次回以降はオフラインでも表示できるようにする。
+async function fetchDestinationImage(title) {
+  const cache = getDestImgCache();
+  if (cache[title]) return cache[title];
   try {
-    const db = await openBgDB();
-    return await new Promise((resolve, reject) => {
-      const tx = db.transaction(BG_STORE, 'readwrite');
-      tx.objectStore(BG_STORE).put(blob, 'image');
-      tx.oncomplete = () => resolve(true);
-      tx.onerror = () => reject(tx.error);
-    });
-  } catch(e) { console.error(e); return false; }
-}
-async function loadBgImage() {
-  try {
-    const db = await openBgDB();
-    return await new Promise((resolve, reject) => {
-      const tx = db.transaction(BG_STORE, 'readonly');
-      const req = tx.objectStore(BG_STORE).get('image');
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => reject(req.error);
-    });
-  } catch(e) { console.error(e); return null; }
-}
-async function clearBgImage() {
-  try {
-    const db = await openBgDB();
-    return await new Promise((resolve, reject) => {
-      const tx = db.transaction(BG_STORE, 'readwrite');
-      tx.objectStore(BG_STORE).delete('image');
-      tx.oncomplete = () => resolve(true);
-      tx.onerror = () => reject(tx.error);
-    });
-  } catch(e) { console.error(e); return false; }
+    const url = `https://ja.wikipedia.org/w/api.php?action=query&format=json&origin=*&prop=pageimages&piprop=thumbnail&pithumbsize=1600&redirects=1&titles=${encodeURIComponent(title)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const pages = data && data.query && data.query.pages;
+    const page = pages && Object.values(pages)[0];
+    const src = page && page.thumbnail && page.thumbnail.source;
+    if (src) { cache[title] = src; LS.set(DEST_IMG_CACHE_KEY, cache); return src; }
+  } catch (e) { console.error(e); }
+  return null;
 }
 
-// the dim overlay should only darken the page when a background image is
-// actually showing — otherwise it just muddies the plain paper background.
-function updateOverlay() {
-  const s = loadSettings();
-  document.getElementById('bg-overlay').style.background = _hasBgImage ? `rgba(0,0,0,${s.dim})` : 'rgba(0,0,0,0)';
-}
-
-async function setBgFromBlob(blob, filename) {
-  try {
-    const dataUrl = await blobToDataUrl(blob);
-    document.getElementById('bg-layer').style.backgroundImage = `url("${dataUrl}")`;
-    _hasBgImage = true;
-    updateOverlay();
-    const fnEl = document.getElementById('bg-filename');
-    if (fnEl) fnEl.textContent = filename || '設定済みの画像';
-    return true;
-  } catch(e) {
-    console.error(e);
-    _hasBgImage = false;
-    updateOverlay();
-    return false;
+let _destBgToken = 0;
+async function applyDestinationBackground(deckId) {
+  const dest = getCurrentDestination(deckId);
+  const token = ++_destBgToken;
+  const layer = document.getElementById('dest-bg');
+  const src = await fetchDestinationImage(dest.title);
+  if (token !== _destBgToken) return; // 別の目的地への切り替えが先に発生していれば無視
+  if (src) {
+    const img = new Image();
+    img.onload = () => { if (token === _destBgToken) layer.style.backgroundImage = `url("${src}")`; };
+    img.src = src;
   }
 }
-
-function initSettings() {
-  const s = loadSettings();
-  document.getElementById('dim-slider').value = s.dim;
-  document.getElementById('dim-val').textContent = Math.round(s.dim * 100) + '%';
-  loadBgImage().then(blob => {
-    if (blob) setBgFromBlob(blob);
-    else { _hasBgImage = false; updateOverlay(); }
-  });
+function showDestinationLayer(show) {
+  document.getElementById('dest-bg').classList.toggle('show', show);
+  document.getElementById('dest-scrim').classList.toggle('show', show);
 }
 
-async function uploadBg(input) {
-  const file = input.files[0]; if (!file) return;
-  const shown = await setBgFromBlob(file, file.name);
-  if (!shown) { toast('画像の読み込みに失敗しました。別の画像でお試しください'); input.value = ''; return; }
-  const saved = await saveBgImage(file);
-  input.value = '';
-  toast(saved ? '背景画像を設定しました' : '背景画像を設定しました（保存に失敗・このセッションのみ表示されます）');
-}
-
-async function clearBg() {
-  document.getElementById('bg-layer').style.backgroundImage = '';
-  _hasBgImage = false;
-  updateOverlay();
-  const fnEl = document.getElementById('bg-filename');
-  if (fnEl) fnEl.textContent = '';
-  await clearBgImage();
-  toast('背景をなしにしました');
-}
-
-function setDim(val) {
-  const s = loadSettings(); s.dim = parseFloat(val); saveSettings(s);
-  document.getElementById('dim-val').textContent = Math.round(val * 100) + '%';
-  updateOverlay();
-}
-
-function applySettings() {
-  // 保存済みの背景画像を復元（リロード後も保持）。画像がある場合のみ暗さを適用する。
-  loadBgImage().then(blob => {
-    if (blob) setBgFromBlob(blob);
-    else { _hasBgImage = false; updateOverlay(); }
-  });
-}
+function initSettings() {}
 
 /* ============================================================
    RENDER ALL + INIT
    ============================================================ */
-function renderAll() { renderSidebar(); renderHome(); }
+function renderAll() { renderHome(); }
 
-function tickClock() {
-  const els = document.querySelectorAll('#sidebar-clock, #sidebar-clock-mobile');
-  if (!els.length) return;
-  const now = new Date();
-  const txt = [now.getHours(), now.getMinutes(), now.getSeconds()].map(n => String(n).padStart(2,'0')).join(':');
-  els.forEach(el => el.textContent = txt);
-}
-tickClock();
-setInterval(tickClock, 1000);
-
-applySettings();
 renderAll();
 </script>
 </body>
