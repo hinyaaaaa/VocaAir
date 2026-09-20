@@ -1,0 +1,739 @@
+
+:root{
+  /* ==== MANDATORY ACCENT — gold foil emboss ==== */
+  --gold:#f6c663;
+  --gold-deep:#c99a3a;
+  --gold-soft:rgba(246,198,99,.18);
+  --gold-ghost:rgba(246,198,99,.08);
+
+  /* ==== base surfaces — oxblood passport-leather cover ==== */
+  --bg:#33101b;
+  --bg-2:#421725;
+  --bg-3:#511e2f;
+  --navy-line:rgba(244,228,204,.14);
+  --navy-line-2:rgba(244,228,204,.24);
+
+  /* ==== paper — aged parchment passport pages ==== */
+  --paper:#f2e7d0;
+  --paper-2:#faf1de;
+  --paper-shadow:#d6c096;
+  --ink:#2b2015;
+  --ink-soft:rgba(43,32,21,.66);
+  --ink-faint:rgba(43,32,21,.44);
+  --line:rgba(43,32,21,.16);
+  --line-2:rgba(43,32,21,.27);
+
+  --cream:#f2e7d0;
+  --cream-soft:rgba(242,231,208,.72);
+  --cream-faint:rgba(242,231,208,.46);
+
+  /* ==== stamp inks — customs red & visa indigo ==== */
+  --red:#a8402d;
+  --red-soft:rgba(168,64,45,.18);
+  --indigo:#324a68;
+  --indigo-soft:rgba(50,74,104,.18);
+
+  --r:10px;
+  --r-lg:16px;
+  --sh:0 14px 30px -10px rgba(8,12,24,.5);
+  --sh-lg:0 24px 50px -14px rgba(8,12,24,.6);
+
+  /* ==== liquid glass — frosted panels over destination photography ==== */
+  --glass-fill:linear-gradient(160deg,rgba(255,255,255,.16),rgba(255,255,255,.05));
+  --glass-fill-strong:linear-gradient(160deg,rgba(255,255,255,.22),rgba(255,255,255,.08));
+  --glass-border:rgba(255,255,255,.30);
+  --glass-hi:inset 0 1px 0 rgba(255,255,255,.4);
+  --glass-lo:inset 0 -1px 0 rgba(0,0,0,.18);
+  --glass-sh:0 20px 50px -14px rgba(8,12,24,.65);
+  --glass-blur:blur(24px) saturate(170%);
+
+  --font-display:'Zen Old Mincho',serif;
+  --font:'Zen Kaku Gothic New','Noto Sans JP',sans-serif;
+  --font-mono:'Space Mono',monospace;
+
+  --spring:cubic-bezier(.34,1.56,.42,1);
+  --spring-soft:cubic-bezier(.22,1.18,.32,1);
+  --land:cubic-bezier(.16,.9,.2,1.06);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);
+  color:var(--cream);
+  font-family:var(--font);
+  font-size:15px;
+  line-height:1.75;
+  min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* ============================================================
+   AMBIENT BACKGROUND — departure-board texture + drifting glow
+   ============================================================ */
+#bg-layer{
+  position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 900px 500px at 14% -6%, rgba(246,198,99,.14), transparent 60%),
+    radial-gradient(ellipse 700px 480px at 106% 18%, rgba(47,111,98,.16), transparent 60%),
+    repeating-linear-gradient(115deg, rgba(255,255,255,.015) 0 2px, transparent 2px 64px),
+    var(--bg);
+  background-size:cover;background-position:center;background-repeat:no-repeat;
+}
+#bg-overlay{position:fixed;inset:0;z-index:1;pointer-events:none;background:rgba(0,0,0,0);transition:background .3s}
+
+/* ============================================================
+   DESTINATION BACKGROUND — the real-world photo VocaAir flies toward.
+   Shown only on the boarding (check-in) and quiz (in-flight) screens;
+   fades in/out as the screen changes and crossfades between cities.
+   ============================================================ */
+#dest-bg{
+  position:fixed;inset:0;z-index:2;pointer-events:none;
+  background-size:cover;background-position:center;
+  opacity:0;transition:opacity .9s var(--land),background-image .1s;
+  filter:saturate(1.08);
+}
+#dest-bg.show{opacity:1}
+#dest-scrim{
+  position:fixed;inset:0;z-index:3;pointer-events:none;opacity:0;transition:opacity .9s var(--land);
+  background:
+    linear-gradient(180deg,rgba(20,12,18,.55) 0%,rgba(20,12,18,.25) 32%,rgba(20,12,18,.55) 78%,rgba(20,12,18,.82) 100%);
+}
+#dest-scrim.show{opacity:1}
+
+/* ============================================================
+   LIQUID GLASS — frosted panels that sit on top of the destination
+   photography (boarding pass, quiz card, result card, tabbar)
+   ============================================================ */
+.glass{
+  background:var(--glass-fill);
+  -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
+  border:1px solid var(--glass-border);
+  box-shadow:var(--glass-sh),var(--glass-hi),var(--glass-lo);
+  color:var(--cream);
+}
+.dest-badge{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:6px 14px 6px 8px;border-radius:99px;
+  font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--cream);
+}
+.dest-badge .db-dot{width:6px;height:6px;border-radius:50%;background:var(--gold);flex-shrink:0;animation:blink-dot 1.8s ease-in-out infinite}
+@keyframes blink-dot{0%,100%{opacity:1}50%{opacity:.35}}
+.dest-badge .db-city{color:var(--gold)}
+
+/* ============================================================
+   SCREEN TRANSITIONS — weighty, app-like, never floaty
+   ============================================================ */
+.app{display:flex;min-height:100vh}
+.screen{display:none}
+.screen.active{display:block;animation:screen-in .5s var(--land) both}
+@keyframes screen-in{
+  0%{opacity:0;transform:translateY(18px) scale(.985)}
+  60%{opacity:1}
+  100%{opacity:1;transform:translateY(0) scale(1)}
+}
+.screen.leaving{animation:screen-out .22s var(--spring-soft) both}
+@keyframes screen-out{
+  to{opacity:0;transform:translateY(-10px) scale(.98)}
+}
+
+/* ============================================================
+   TABBAR — liquid glass, floating, replaces the old sidebar
+   ============================================================ */
+.airmail-stripe{
+  height:5px;
+  background:repeating-linear-gradient(45deg,
+    var(--red) 0 9px, var(--paper) 9px 18px,
+    var(--indigo) 18px 27px, var(--paper) 27px 36px);
+  flex-shrink:0;
+}
+
+.tabbar{
+  position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
+  z-index:40;display:flex;align-items:center;gap:2px;
+  padding:8px;border-radius:26px;
+  background:linear-gradient(165deg,rgba(30,14,22,.86),rgba(20,10,16,.92));
+  -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
+  border:1px solid rgba(255,255,255,.22);
+  box-shadow:0 20px 44px -10px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.16);
+  animation:tabbar-in .5s var(--land) both;
+}
+@keyframes tabbar-in{from{opacity:0;transform:translateX(-50%) translateY(16px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.nav-item{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  width:62px;padding:9px 4px 8px;border-radius:19px;
+  cursor:pointer;color:rgba(242,231,208,.62);font-size:10px;
+  transition:background .18s,color .16s,transform .18s var(--spring-soft);
+  border:none;background:none;text-align:center;
+  font-family:var(--font);letter-spacing:.03em;font-weight:700;
+}
+.nav-item:hover{background:rgba(255,255,255,.12);color:var(--cream)}
+.nav-item:active{transform:scale(.93)}
+.nav-item.active{background:var(--gold);color:#241a08;font-weight:800;box-shadow:0 3px 10px rgba(246,198,99,.45)}
+.nav-item .ni-icon{width:20px;height:20px;opacity:.9;flex-shrink:0}
+.nav-item.active .ni-icon{opacity:1}
+.ni-label{flex:1;min-width:0;white-space:nowrap}
+.tab-fab{
+  width:52px;height:52px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;margin:0 2px;
+  background:var(--gold);color:#241a08;border:none;cursor:pointer;
+  box-shadow:0 6px 16px rgba(246,198,99,.5),inset 0 1px 0 rgba(255,255,255,.5);
+  transition:transform .18s var(--spring-soft);
+}
+.tab-fab:hover{transform:scale(1.06) rotate(90deg)}
+.tab-fab:active{transform:scale(.94) rotate(90deg)}
+
+.main{flex:1;padding:44px 46px 128px;max-width:920px;position:relative;z-index:10;margin:0 auto}
+
+/* ============================================================
+   TYPOGRAPHY
+   ============================================================ */
+.page-title{
+  font-family:var(--font-display);font-weight:700;
+  font-size:28px;color:var(--gold);margin-bottom:6px;letter-spacing:.1em;
+  animation:title-in .55s var(--land) both;
+}
+@keyframes title-in{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+.page-sub{font-size:12.5px;color:var(--cream-faint);margin-bottom:30px;letter-spacing:.05em;font-family:var(--font)}
+
+/* ============================================================
+   CARD — generic glass panel (settings, import)
+   ============================================================ */
+.card{
+  background:var(--glass-fill);
+  -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
+  border:1px solid var(--glass-border);
+  box-shadow:var(--glass-sh),var(--glass-hi),var(--glass-lo);
+  color:var(--cream);
+  border-radius:var(--r-lg);
+  padding:22px 26px;
+  position:relative;
+}
+.card+.card{margin-top:14px}
+.card.flush{padding:0}
+
+/* ============================================================
+   BUTTONS — pressable, weighty, spring release
+   ============================================================ */
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:10px 20px;border-radius:var(--r);
+  font-size:13.5px;cursor:pointer;letter-spacing:.05em;
+  border:1.5px solid var(--navy-line-2);background:rgba(255,255,255,.05);
+  color:var(--cream);transition:transform .16s var(--spring),box-shadow .16s,background .12s,border-color .12s;
+  font-family:var(--font);font-weight:600;
+  box-shadow:0 2px 0 rgba(0,0,0,.3);
+}
+.btn:hover{background:rgba(255,255,255,.09);border-color:var(--gold-deep);transform:translateY(-1px)}
+.btn:active{transform:translateY(1px) scale(.97);box-shadow:0 1px 0 rgba(0,0,0,.3)}
+.btn.primary{
+  background:var(--gold);color:#241a08;border-color:var(--gold);font-weight:800;
+  box-shadow:0 3px 0 var(--gold-deep);
+}
+.btn.primary:hover{background:#f8d17c;transform:translateY(-1px)}
+.btn.primary:active{box-shadow:0 1px 0 var(--gold-deep);transform:translateY(2px) scale(.97)}
+.btn.ghost{background:none;border-color:var(--navy-line-2);color:var(--cream-faint);box-shadow:none}
+.btn.ghost:hover{background:rgba(255,255,255,.05);color:var(--cream);border-color:var(--gold-deep)}
+.btn.danger-ghost{background:none;border-color:transparent;color:var(--cream-faint);box-shadow:none}
+.btn.danger-ghost:hover{color:var(--red);border-color:rgba(168,64,45,.4);background:var(--red-soft)}
+.btn.sm{padding:6px 14px;font-size:12px}
+.btn.lg{padding:13px 30px;font-size:15px}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+
+/* ============================================================
+   FORM
+   ============================================================ */
+.form-group{margin-bottom:16px}
+.form-label{display:block;font-size:11.5px;color:var(--cream-faint);margin-bottom:6px;letter-spacing:.1em;font-family:var(--font);font-weight:700}
+.form-input{
+  width:100%;padding:11px 14px;border:1.5px solid var(--navy-line-2);
+  border-radius:var(--r);font-size:14px;
+  background:rgba(255,255,255,.04);color:var(--cream);
+  font-family:var(--font);transition:border-color .15s,box-shadow .15s;letter-spacing:.03em;
+}
+.form-input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-soft)}
+.form-hint{font-size:11px;color:var(--cream-faint);margin-top:5px;letter-spacing:.03em;font-family:var(--font)}
+select.form-input{cursor:pointer}
+select.form-input option{background:#1a2c4d;color:var(--cream)}
+
+/* ============================================================
+   HOME DASHBOARD — today summary + flight list
+   ============================================================ */
+.home-hero{
+  border-radius:var(--r-lg);padding:22px 26px;margin-bottom:22px;
+  display:flex;align-items:center;gap:16px;
+  animation:card-deal .5s var(--spring-soft) both;
+}
+.home-hero-icon{
+  width:44px;height:44px;border-radius:14px;flex-shrink:0;
+  background:var(--gold-soft);color:var(--gold);
+  display:flex;align-items:center;justify-content:center;
+}
+.home-hero-text{min-width:0}
+.home-hero-eyebrow{font-size:10.5px;color:var(--cream-faint);letter-spacing:.16em;font-family:var(--font-mono);font-weight:700;margin-bottom:4px}
+.home-hero-msg{font-family:var(--font-display);font-size:18px;color:var(--cream);letter-spacing:.03em;line-height:1.5}
+
+.flight-list{display:flex;flex-direction:column;gap:10px;margin-bottom:24px}
+.flight-row{
+  display:flex;align-items:center;gap:16px;padding:16px 18px;
+  border-radius:var(--r-lg);cursor:pointer;position:relative;
+  animation:card-deal .45s var(--spring-soft) both;
+  transition:transform .22s var(--spring-soft),box-shadow .22s;
+}
+.flight-list .flight-row:nth-child(1){animation-delay:.02s}
+.flight-list .flight-row:nth-child(2){animation-delay:.06s}
+.flight-list .flight-row:nth-child(3){animation-delay:.1s}
+.flight-list .flight-row:nth-child(4){animation-delay:.14s}
+.flight-list .flight-row:nth-child(n+5){animation-delay:.17s}
+@keyframes card-deal{
+  0%{opacity:0;transform:translateY(16px) scale(.97)}
+  100%{opacity:1;transform:translateY(0) scale(1)}
+}
+.flight-row:hover{transform:translateY(-3px);box-shadow:var(--glass-sh),var(--glass-hi)}
+.flight-row:active{transform:translateY(-1px) scale(.995)}
+
+.fr-code-col{
+  flex-shrink:0;width:58px;text-align:center;padding-right:14px;
+  border-right:1.5px dashed rgba(255,255,255,.22);
+}
+.fr-code{display:block;font-family:var(--font-mono);font-weight:700;font-size:17px;color:var(--gold);letter-spacing:.04em}
+.fr-code-city{display:block;font-size:10px;color:var(--cream-faint);margin-top:2px;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.fr-main{flex:1;min-width:0}
+.fr-name{
+  font-family:var(--font-display);font-weight:700;font-size:17px;color:var(--cream);
+  letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:5px;
+}
+.fr-meta{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--cream-faint);letter-spacing:.02em;font-family:var(--font-mono)}
+.fr-due{color:var(--gold);font-weight:700}
+.fr-mastered{color:var(--cream-faint)}
+
+.fr-del{
+  flex-shrink:0;width:32px;height:32px;border-radius:10px;border:none;
+  background:none;color:var(--cream-faint);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .15s,color .15s;
+}
+.fr-del:hover{background:var(--red-soft);color:var(--red)}
+.fr-chev{flex-shrink:0;color:var(--cream-faint);opacity:.6}
+
+.mode-tabs{display:flex;border:1.5px solid var(--navy-line-2);border-radius:var(--r);overflow:hidden;margin-bottom:10px}
+.mode-tab{
+  flex:1;padding:11px 4px;font-size:12.5px;text-align:center;
+  cursor:pointer;border:none;background:none;color:var(--cream-faint);
+  font-family:var(--font);letter-spacing:.02em;font-weight:600;
+  transition:background .15s,color .15s,transform .12s var(--spring-soft);
+  border-left:1px solid var(--navy-line);
+}
+.mode-tab:first-child{border-left:none}
+.mode-tab.active{background:var(--gold);color:#241a08;font-weight:800;transform:scale(1.02)}
+.mode-tab:hover:not(.active){background:rgba(255,255,255,.08);color:var(--cream)}
+
+/* ============================================================
+   QUIZ — the immigration checkpoint
+   ============================================================ */
+.quiz-header{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:22px}
+.q-back{
+  padding:8px 16px;border-radius:var(--r);border:1.5px solid var(--navy-line-2);
+  background:rgba(255,255,255,.05);color:var(--cream-faint);cursor:pointer;font-family:var(--font);
+  font-size:12.5px;letter-spacing:.04em;font-weight:600;
+  transition:color .12s,border-color .12s,transform .16s var(--spring);
+  flex-shrink:0;
+}
+.q-back:hover{color:var(--gold);border-color:var(--gold-deep);transform:translateX(-2px)}
+.quiz-header-right{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+
+/* progress = stamp collection strip */
+.progress-wrap{width:200px;padding-top:14px}
+.progress-bar{
+  height:10px;border-radius:99px;background:rgba(255,255,255,.08);
+  overflow:visible;position:relative;border:1px solid var(--navy-line-2);
+}
+.progress-fill{
+  height:100%;border-radius:99px;overflow:hidden;
+  background:linear-gradient(90deg,var(--gold-deep),var(--gold));
+  transition:width .35s var(--spring-soft);position:relative;
+}
+.progress-fill::after{
+  content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.35) 0 2px,transparent 2px 9px);
+}
+.progress-plane{
+  position:absolute;bottom:calc(100% + 2px);
+  transform:translateX(-50%) rotate(90deg);
+  font-size:13px;color:var(--gold);
+  transition:left .35s var(--spring-soft);
+}
+.progress-label{font-size:11px;color:var(--cream-faint);margin-top:6px;letter-spacing:.06em;font-family:var(--font-mono);text-align:right}
+
+.score-pills{display:flex;gap:8px}
+.pill{padding:5px 14px;border-radius:99px;font-size:12.5px;font-weight:700;letter-spacing:.03em;font-family:var(--font-mono);border:1.5px solid transparent}
+.pill.ok{background:var(--indigo-soft);color:#a9bde0;border-color:rgba(50,74,104,.4)}
+.pill.ng{background:var(--red-soft);color:#e3a08f;border-color:rgba(168,64,45,.4)}
+
+/* ============================================================
+   BOARDING SCREEN — 単語帳を選んだ後にモードを設定する搭乗手続き画面
+   ============================================================ */
+.board-pass{
+  position:relative;border-radius:var(--r-lg);
+  overflow:hidden;max-width:520px;
+  animation:card-drop .5s var(--spring) both;
+}
+.board-body{padding:30px 32px 32px;color:var(--cream)}
+.dc-eyebrow-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.dc-route{
+  display:inline-flex;align-items:center;gap:5px;
+  font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:.06em;
+  color:var(--cream-faint);flex-shrink:0;
+}
+.dc-route svg{color:var(--gold);opacity:.85}
+.board-deck-name{
+  font-family:var(--font-display);font-weight:700;font-size:26px;
+  color:var(--cream);margin:10px 0 16px;letter-spacing:.03em;
+}
+.board-stats{display:flex;gap:28px;padding-bottom:20px;margin-bottom:22px;border-bottom:1.5px dashed rgba(255,255,255,.25)}
+.board-stat{display:flex;flex-direction:column;gap:2px}
+.bs-num{font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--gold)}
+.bs-lbl{font-size:11px;color:var(--cream-faint);letter-spacing:.06em;font-family:var(--font)}
+
+.board-section{margin-bottom:22px}
+.board-section-label{
+  font-size:11px;color:var(--cream-faint);letter-spacing:.14em;margin-bottom:10px;
+  font-family:var(--font-mono);font-weight:700;
+}
+.board-section .mode-tab{padding:11px 4px}
+.mt-sub{display:block;font-size:9.5px;font-weight:600;opacity:.7;margin-top:2px;font-family:var(--font-mono)}
+
+.count-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.count-pill{
+  padding:9px 16px;border-radius:99px;border:1.5px solid rgba(255,255,255,.25);
+  background:rgba(255,255,255,.06);color:var(--cream-soft);font-family:var(--font-mono);
+  font-size:12.5px;font-weight:700;cursor:pointer;letter-spacing:.02em;
+  transition:transform .12s var(--spring-soft),border-color .12s,background-color .12s,color .12s;
+}
+.count-pill:hover{border-color:var(--gold)}
+.count-pill.active{background:var(--gold);border-color:var(--gold);color:#241a08;transform:scale(1.04)}
+
+.board-start-btn{width:100%;justify-content:center;font-size:16px;padding:16px;margin-top:6px}
+.board-warn{font-size:12.5px;color:var(--cream-faint);text-align:center;margin-top:10px;letter-spacing:.03em}
+
+/* the boarding-pass ticket that holds the question */
+.sentence-box{
+  border-radius:var(--r-lg);
+  padding:42px 34px 30px;margin-bottom:18px;
+  position:relative;color:var(--cream);overflow:visible;
+}
+.sentence-box.card-enter{animation:card-drop .5s var(--spring) both}
+@keyframes card-drop{
+  0%{opacity:0;transform:translateY(-26px) rotate(-3deg) scale(.96)}
+  60%{transform:translateY(4px) rotate(.6deg) scale(1.01)}
+  100%{opacity:1;transform:translateY(0) rotate(0) scale(1)}
+}
+.sentence-box::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:5px;z-index:0;
+  border-radius:var(--r-lg) var(--r-lg) 0 0;overflow:hidden;
+  background:repeating-linear-gradient(45deg,
+    var(--red) 0 9px, rgba(255,255,255,.85) 9px 18px,
+    var(--indigo) 18px 27px, rgba(255,255,255,.85) 27px 36px);
+  opacity:.9;
+}
+.sentence-box .lbl{
+  font-size:11px;color:var(--gold);letter-spacing:.16em;margin-bottom:16px;font-family:var(--font-mono);font-weight:700;text-align:center;
+}
+.sentence-text{
+  font-family:var(--font-display);font-weight:700;
+  font-size:32px;line-height:1.5;color:var(--cream);letter-spacing:.03em;overflow-wrap:break-word;text-align:center;
+  text-shadow:0 2px 12px rgba(0,0,0,.3);
+}
+.q-memo{margin-top:16px;text-align:center;font-size:11.5px;color:var(--cream-faint);font-family:var(--font);letter-spacing:.03em;font-style:italic}
+
+.blank-input{
+  display:inline-block;border:2px solid rgba(255,255,255,.3);border-radius:8px;
+  background-color:rgba(255,255,255,.08);font-size:19px;color:var(--cream);
+  outline:none;padding:6px 14px;vertical-align:middle;
+  text-align:center;min-width:3.5ch;max-width:100%;font-family:var(--font-mono);
+  letter-spacing:.04em;transition:border-color .15s,background-color .15s,transform .1s;
+}
+.blank-input::placeholder{color:var(--cream-faint)}
+.blank-input:focus{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-ghost)}
+.blank-input.correct{border-color:#7fd1b8;background-color:rgba(50,150,120,.22);color:#bdf0dd;font-weight:700}
+.blank-input.wrong{border-color:#e88;background-color:rgba(168,64,45,.28);color:#f4c2b5;font-weight:700}
+
+.input-answer-wrap{display:flex;justify-content:center;margin:6px 0 4px}
+.input-answer-wrap .blank-input{
+  font-size:21px;min-width:12ch;padding:12px 20px;
+  background-color:rgba(255,255,255,.1);color:var(--cream);
+  border-color:rgba(255,255,255,.3);box-shadow:none;
+}
+.input-answer-wrap .blank-input::placeholder{color:var(--cream-faint)}
+.input-answer-wrap .blank-input:focus{box-shadow:0 0 0 3px var(--gold-ghost)}
+.input-answer-wrap .blank-input.correct{background-color:rgba(50,150,120,.22);color:#bdf0dd;border-color:#7fd1b8}
+.input-answer-wrap .blank-input.wrong{background-color:rgba(168,64,45,.28);color:#f4c2b5;border-color:#e88}
+
+.choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:4px}
+.choice-btn{
+  padding:14px 18px 14px 14px;border-radius:var(--r);border:1.5px solid rgba(255,255,255,.25);
+  background:rgba(255,255,255,.07);color:var(--cream);font-family:var(--font);font-size:15.5px;font-weight:500;
+  letter-spacing:.02em;cursor:pointer;text-align:left;line-height:1.4;
+  display:flex;align-items:center;gap:12px;
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  transition:transform .14s var(--spring),box-shadow .14s,border-color .14s,background-color .14s;
+}
+.choice-key{
+  flex-shrink:0;width:24px;height:24px;border-radius:6px;
+  background:rgba(255,255,255,.12);color:var(--cream-soft);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-mono);font-size:12px;font-weight:700;
+  border:1px solid rgba(255,255,255,.25);
+}
+.choice-btn.correct .choice-key{background:#3f9d7d;color:#fff;border-color:#3f9d7d}
+.choice-btn.wrong .choice-key{background:var(--red);color:#fff;border-color:var(--red)}
+.choice-label{flex:1;min-width:0}
+.choice-btn:hover:not(:disabled){border-color:var(--gold);transform:translateY(-2px);background:rgba(255,255,255,.11)}
+.choice-btn:active:not(:disabled){transform:translateY(1px) scale(.98)}
+.choice-btn:disabled{cursor:default}
+.choice-btn.correct{border-color:#3f9d7d;background:rgba(50,150,120,.24);color:#d3f5e8;font-weight:800}
+.choice-btn.wrong{border-color:var(--red);background:rgba(168,64,45,.3);color:#f9d2c6;font-weight:800}
+@media (max-width:640px){.choice-grid{grid-template-columns:1fr}}
+
+.feedback{
+  display:none;padding:14px 18px;border-radius:var(--r);
+  font-size:13.5px;margin-bottom:16px;align-items:center;gap:10px;
+  letter-spacing:.03em;font-family:var(--font);border:1.5px solid transparent;font-weight:700;
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+}
+.feedback.ok{display:flex;background:rgba(50,150,120,.22);color:#c8f2e2;border-color:rgba(63,157,125,.5)}
+.feedback.ng{display:flex;background:rgba(168,64,45,.26);color:#f4c9bc;border-color:rgba(168,64,45,.5)}
+.feedback strong{font-family:var(--font-mono);font-size:15px}
+
+/* auto-grade-tag — 回答時間から自動推定した難易度(Hard/Good/Easy)を示す小さなバッジ */
+.auto-grade-tag{
+  display:inline-flex;align-items:center;padding:2px 10px;border-radius:99px;
+  font-size:11px;font-weight:800;letter-spacing:.04em;font-family:var(--font-mono);
+  animation:tag-pop .3s var(--spring) both;
+}
+@keyframes tag-pop{0%{opacity:0;transform:scale(.6)}100%{opacity:1;transform:scale(1)}}
+.auto-grade-tag.ag-hard{background:rgba(168,64,45,.28);color:#f0b3a2}
+.auto-grade-tag.ag-good{background:rgba(217,168,62,.28);color:#f6d896}
+.auto-grade-tag.ag-easy{background:rgba(50,74,104,.34);color:#b7c7e6}
+
+.kbd-hint{
+  display:flex;gap:20px;justify-content:center;margin-top:18px;
+  font-size:11.5px;color:var(--cream-faint);letter-spacing:.04em;font-family:var(--font);
+  flex-wrap:wrap;
+}
+.kbd-hint span{display:flex;align-items:center;gap:6px}
+kbd{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:20px;height:20px;padding:0 5px;border-radius:5px;
+  background:rgba(255,255,255,.08);border:1px solid var(--navy-line-2);
+  border-bottom:2px solid var(--navy-line-2);
+  font-family:var(--font-mono);font-size:10.5px;color:var(--cream-soft);font-weight:700;
+}
+
+/* ============================================================
+   STAMP LAYER — the signature moment
+   ============================================================ */
+.stamp-layer{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  pointer-events:none;z-index:6;
+}
+.stamp{
+  width:150px;height:150px;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;
+}
+.stamp svg{width:100%;height:100%;overflow:visible}
+.stamp-ring{fill:none;stroke-width:6}
+@keyframes stamp-slam{
+  0%{opacity:0;transform:translateY(-95px) scale(2.5) rotate(-20deg)}
+  45%{opacity:1;transform:translateY(6px) scale(.9) rotate(-6deg)}
+  62%{transform:translateY(-4px) scale(1.06) rotate(-8deg)}
+  80%{transform:translateY(1px) scale(.97) rotate(-7deg)}
+  100%{opacity:1;transform:translateY(0) scale(1) rotate(-7deg)}
+}
+
+.choice-btn.choice-in{animation:choice-in .4s var(--spring-soft) both}
+@keyframes choice-in{from{opacity:0;transform:translateY(16px) scale(.94)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+.screen-shake{animation:screen-shake .38s var(--spring)}
+@keyframes screen-shake{
+  10%{transform:translateX(-7px) rotate(-.6deg)}
+  30%{transform:translateX(6px) rotate(.5deg)}
+  50%{transform:translateX(-4px) rotate(-.3deg)}
+  70%{transform:translateX(3px) rotate(.2deg)}
+  100%{transform:translateX(0) rotate(0)}
+}
+
+/* ============================================================
+   RESULT — the stamped passport photo page
+   ============================================================ */
+.result-card{border-radius:var(--r-lg);padding:34px 30px 30px;max-width:520px;animation:card-drop .5s var(--spring) both}
+.result-hero{text-align:center;padding:4px 0 26px;position:relative}
+.result-next{
+  display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;
+  margin-top:22px;padding-top:20px;border-top:1.5px dashed rgba(255,255,255,.25);
+  font-family:var(--font-mono);font-size:11.5px;color:var(--cream-faint);letter-spacing:.04em;
+}
+.result-next .rn-sep{opacity:.4}
+.result-next .rn-city{color:var(--gold);font-weight:700}
+.result-pct{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:172px;height:172px;border-radius:50%;
+  border:4px solid var(--gold);position:relative;
+  font-family:var(--font-mono);font-size:44px;font-weight:700;color:var(--gold);
+  letter-spacing:-1px;line-height:1;transform:rotate(-4deg);
+  animation:stamp-land .6s var(--spring) both;
+  box-shadow:0 0 0 6px rgba(246,198,99,.08);
+}
+@keyframes stamp-land{
+  0%{opacity:0;transform:rotate(-4deg) scale(1.7) translateY(-40px)}
+  55%{opacity:1;transform:rotate(-4deg) scale(.94) translateY(2px)}
+  100%{opacity:1;transform:rotate(-4deg) scale(1) translateY(0)}
+}
+.result-pct::before{content:'';position:absolute;inset:9px;border-radius:50%;border:1.5px solid var(--gold);opacity:.55}
+.result-msg{font-family:var(--font-display);font-weight:700;font-size:16px;color:var(--cream);margin-top:18px;letter-spacing:.05em}
+.result-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:24px 0}
+.stat-box{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);border-radius:var(--r);padding:18px 10px;text-align:center;color:var(--cream)}
+.stat-num{font-family:var(--font-mono);font-size:26px;font-weight:700;color:var(--gold)}
+.stat-lbl{font-size:10.5px;color:var(--cream-faint);margin-top:5px;letter-spacing:.06em;font-family:var(--font)}
+
+/* ============================================================
+   IMPORT
+   ============================================================ */
+.format-guide{background:rgba(255,255,255,.06);border:1px solid var(--navy-line);border-radius:var(--r);padding:16px 18px;margin-bottom:20px;font-size:13px;color:var(--cream-soft);letter-spacing:.03em}
+.format-guide code{background:var(--gold-soft);border-radius:4px;padding:1px 6px;font-family:var(--font-mono);color:var(--gold);font-size:12px}
+.drop-zone{
+  border:2.5px dashed var(--navy-line-2);border-radius:var(--r-lg);
+  padding:46px;text-align:center;cursor:pointer;
+  transition:border-color .18s,background .18s,transform .18s var(--spring-soft);margin-bottom:18px;
+  background:rgba(255,255,255,.02);
+}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--gold);background:var(--gold-ghost);transform:scale(1.01)}
+.drop-zone-icon{font-size:36px;margin-bottom:12px;opacity:.7}
+.drop-zone p{color:var(--cream-soft);font-size:14px;letter-spacing:.04em;font-family:var(--font)}
+.drop-zone small{color:var(--cream-faint);font-size:12px;margin-top:4px;display:block;font-family:var(--font)}
+.preview-wrap{overflow-x:auto;max-height:260px;overflow-y:auto;border-radius:var(--r);margin-bottom:16px;background:rgba(255,255,255,.05);border:1px solid var(--navy-line)}
+.preview-table{width:100%;border-collapse:collapse;font-size:13px;color:var(--cream)}
+.preview-table th{background:rgba(255,255,255,.06);padding:10px 14px;text-align:left;font-size:11px;color:var(--cream-soft);border-bottom:1px solid var(--navy-line);position:sticky;top:0;letter-spacing:.06em;font-weight:700;font-family:var(--font)}
+.preview-table td{padding:10px 14px;border-bottom:1px solid var(--navy-line);color:var(--cream-soft)}
+.preview-table tr:last-child td{border-bottom:none}
+.preview-table tr:hover td{background:rgba(255,255,255,.04)}
+
+/* ============================================================
+   SETTINGS
+   ============================================================ */
+.settings-section{margin-bottom:28px}
+.settings-label{font-size:11px;color:var(--cream-soft);letter-spacing:.1em;margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid var(--navy-line);font-family:var(--font);font-weight:800}
+
+/* ============================================================
+   MODAL — passport visa application slip
+   ============================================================ */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(8,12,24,.6);backdrop-filter:blur(3px);z-index:100;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{
+  background:linear-gradient(165deg,rgba(40,20,30,.92),rgba(30,14,22,.96));
+  color:var(--cream);
+  -webkit-backdrop-filter:blur(28px) saturate(160%);backdrop-filter:blur(28px) saturate(160%);
+  border:1px solid var(--glass-border);
+  border-radius:var(--r-lg);padding:30px 32px;width:420px;max-width:94vw;
+  box-shadow:0 24px 60px rgba(0,0,0,.55),var(--glass-hi);border-top:3px solid var(--gold);
+  animation:modal-pop .38s var(--spring) both;
+}
+@keyframes modal-pop{
+  0%{opacity:0;transform:translateY(24px) scale(.92)}
+  100%{opacity:1;transform:translateY(0) scale(1)}
+}
+.modal-title{font-family:var(--font-display);font-weight:700;font-size:19px;margin-bottom:18px;letter-spacing:.05em;color:var(--cream)}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:22px}
+.confirm-icon{font-size:34px;text-align:center;margin-bottom:12px}
+.confirm-msg{font-family:var(--font);font-size:15px;text-align:center;color:var(--cream);margin-bottom:6px;letter-spacing:.03em;line-height:1.7}
+.confirm-sub{font-size:12px;text-align:center;color:var(--cream-faint);letter-spacing:.03em;font-family:var(--font)}
+
+/* ============================================================
+   TOAST — a customs-desk announcement
+   ============================================================ */
+#toast{
+  position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(0);
+  background:var(--bg-2);color:var(--cream);padding:12px 26px;border-radius:99px;
+  font-size:13px;letter-spacing:.04em;font-family:var(--font);font-weight:600;
+  opacity:0;transition:opacity .25s,transform .3s var(--spring);pointer-events:none;z-index:300;
+  border:1.5px solid var(--gold-deep);box-shadow:0 10px 28px rgba(0,0,0,.45);
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(-6px)}
+
+/* ============================================================
+   EMPTY STATE
+   ============================================================ */
+.empty{text-align:center;padding:58px 24px;color:var(--cream-faint)}
+.empty-icon{font-size:42px;margin-bottom:14px;opacity:.6}
+.empty p{font-family:var(--font);font-size:15px;letter-spacing:.05em;color:var(--cream-soft)}
+.empty small{font-size:12px;margin-top:6px;display:block;letter-spacing:.03em;font-family:var(--font)}
+
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--navy-line-2);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--gold-deep)}
+
+/* ============================================================
+   RESPONSIVE — MOBILE
+   ============================================================ */
+@media(max-width:760px){
+  .main{padding:28px 16px 120px;max-width:100%}
+
+  .tabbar{bottom:14px;gap:0;padding:6px}
+  .nav-item{width:52px;font-size:9px}
+  .nav-item .ni-icon{width:18px;height:18px}
+  .btn{padding:11px 18px;font-size:14.5px;min-height:44px}
+  .btn.sm{padding:8px 14px;font-size:13px;min-height:38px}
+  .btn.lg{padding:14px 24px;font-size:15px}
+  .form-input{padding:12px 14px;font-size:15px}
+
+  .page-title{font-size:23px}
+  .page-sub{margin-bottom:20px}
+
+  .flight-row{padding:13px 14px;gap:12px}
+  .fr-code-col{width:46px;padding-right:10px}
+  .fr-code{font-size:15px}
+  .fr-name{font-size:15.5px}
+  .mode-tabs{margin-bottom:10px}
+  .mode-tab{padding:9px 4px;font-size:11.5px}
+
+  .quiz-header{flex-wrap:wrap;gap:10px 14px}
+  .q-back{min-height:38px}
+  .quiz-header-right{align-items:flex-end}
+  .progress-wrap{width:140px}
+  .sentence-box{padding:30px 20px 24px}
+  .sentence-text{font-size:24px;line-height:1.5}
+  .blank-input{font-size:17px;min-width:3ch;padding:5px 10px}
+  .btn-row{margin-top:18px}
+  .btn-row .btn.lg{flex:1;justify-content:center}
+
+  .result-pct{width:132px;height:132px;font-size:34px}
+  .result-stats{grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .stat-box{padding:12px 8px}
+  .stat-num{font-size:22px}
+  .stat-lbl{font-size:10px}
+
+  .drop-zone{padding:32px 16px}
+  .format-guide{padding:14px}
+  .format-guide table{font-size:12px}
+
+  .modal{padding:22px 20px;width:92vw}
+  .card{padding:20px 18px}
+}
+
+@media(max-width:400px){
+  .result-stats{grid-template-columns:1fr 1fr 1fr;gap:6px}
+  .sentence-text{font-size:21px}
+  .blank-input{font-size:16px;min-width:2.5ch}
+}
+
+@media (prefers-reduced-motion: reduce){
+  .screen.active,.flight-row,.sentence-box,.result-pct,.brand-mark,.page-title{animation:none !important}
+  .btn,.choice-btn,.nav-item{transition:none !important}
+}
+
