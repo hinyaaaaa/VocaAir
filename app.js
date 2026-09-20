@@ -440,14 +440,14 @@ function renderBoardScreen(deckId) {
   ).join('') + `<button class="count-pill ${count===0?'active':''}" onclick="setBoardCount(${deckId},0)">全部（${total}問）</button>`;
 
   const dest = getCurrentDestination(deckId);
-  const next = DESTINATIONS[(getDeckLap(deckId) + 1) % DESTINATIONS.length];
+  const next = getNextDestination(deckId);
 
   pass.innerHTML = `
     <div class="airmail-stripe"></div>
     <div class="board-body">
       <div class="dc-eyebrow-row">
         <span class="dest-badge"><span class="db-dot"></span>現在地 <span class="db-city">${esc(dest.city)}</span></span>
-        <span class="dc-route">${dest.code} <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2.5 1.5V22l4-1 4 1v-1.5L13 19v-5.5z"/></svg> ${next.code}</span>
+        <span class="dc-route">${dest.code} <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg> ${next.code}</span>
       </div>
       <div class="board-deck-name">${esc(deck.name)}</div>
       <div class="board-stats">
@@ -481,7 +481,7 @@ function renderBoardScreen(deckId) {
       </div>
 
       <button class="btn primary board-start-btn" onclick="startQuizDeck(${deckId})">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
         学習をはじめる
       </button>
       ${(mode === 'due' && due === 0) ? '<p class="board-warn">今日の復習はありません。「問題数を指定」でも学習できます</p>' : ''}
@@ -859,7 +859,7 @@ function showResult() {
   // (実際にその目的地へ進むのは、次回「学習をはじめる」を押した瞬間)
   if (qDeckId != null) {
     const arrived = getCurrentDestination(qDeckId);
-    const next = DESTINATIONS[(getDeckLap(qDeckId) + 1) % DESTINATIONS.length];
+    const next = getNextDestination(qDeckId);
     document.getElementById('res-arrived-city').textContent = arrived.city;
     document.getElementById('res-next-city').textContent = next.city;
   }
@@ -986,13 +986,16 @@ function clearImport() {
 
 /* ============================================================
    DESTINATIONS — a real-world "flight path" VocaAir travels along.
-   Every time studying is *started* (not finished), the deck advances
-   one stop further. Photography is fetched live from Wikipedia (ja→en
-   fallback, so no guessed/broken links) and cached in localStorage.
-   If no photo can be found, a deterministic gradient stands in — the
-   app never looks broken, it just looks a little more abstract.
+   100 stops, mixing famous landmarks with lesser-known places, so
+   studying doubles as a small window onto the world. Every time
+   studying is *started* (not finished), the deck flies to a new,
+   randomly chosen stop. Photography is fetched live from Wikipedia
+   (ja→en fallback) and cached in localStorage. If no photo can be
+   found, a deterministic gradient stands in — the app never looks
+   broken, it just looks a little more abstract.
    ============================================================ */
 const DESTINATIONS = [
+  // ── アジア ──
   { city: '東京',           code: 'NRT', title: '東京タワー' },
   { city: '京都',           code: 'KIX', title: '伏見稲荷大社' },
   { city: '大阪',           code: 'ITM', title: '大阪城' },
@@ -1000,16 +1003,50 @@ const DESTINATIONS = [
   { city: 'ソウル',          code: 'ICN', title: '景福宮' },
   { city: '台北',           code: 'TPE', title: '台北101' },
   { city: '香港',           code: 'HKG', title: '香港' },
+  { city: '北京',           code: 'PEK', title: '故宮博物院' },
+  { city: '上海',           code: 'PVG', title: '上海' },
   { city: 'バンコク',        code: 'BKK', title: 'ワット・アルン' },
   { city: 'シンガポール',     code: 'SIN', title: 'マリーナベイ・サンズ' },
   { city: 'バリ島',          code: 'DPS', title: 'タナロット寺院' },
   { city: 'デリー',          code: 'DEL', title: 'タージ・マハル' },
   { city: 'カトマンズ',       code: 'KTM', title: 'エベレスト' },
+  { city: 'ブータン',        code: 'PBH', title: 'ブータン' },
+  { city: 'スリランカ',      code: 'CMB', title: 'シーギリヤ' },
+  { city: 'ミャンマー',      code: 'RGN', title: 'バガン' },
+  { city: 'ラオス',         code: 'LPQ', title: 'ルアンパバーン' },
+  { city: 'モンゴル',        code: 'UBN', title: 'モンゴル' },
+  { city: 'ウズベキスタン',   code: 'TAS', title: 'サマルカンド' },
+  { city: 'カザフスタン',    code: 'ALA', title: 'カザフスタン' },
+  { city: 'キルギス',        code: 'FRU', title: 'キルギス' },
+  { city: 'バングラデシュ',   code: 'DAC', title: 'バングラデシュ' },
+  { city: 'ブルネイ',        code: 'BWN', title: 'ブルネイ' },
+  { city: 'モルディブ',      code: 'MLE', title: 'モルディブ' },
+  // ── 中東 ──
   { city: 'ドバイ',          code: 'DXB', title: 'ブルジュ・ハリファ' },
   { city: 'イスタンブール',    code: 'IST', title: 'アヤソフィア' },
+  { city: 'ヨルダン',        code: 'AMM', title: 'ペトラ' },
+  { city: 'オマーン',        code: 'MCT', title: 'オマーン' },
+  { city: 'ドーハ',          code: 'DOH', title: 'ドーハ' },
+  { city: 'レバノン',        code: 'BEY', title: 'レバノン' },
+  { city: 'エルサレム',      code: 'TLV', title: 'エルサレム旧市街' },
+  { city: 'サウジアラビア',   code: 'RUH', title: 'サウジアラビア' },
+  // ── アフリカ ──
   { city: 'カイロ',          code: 'CAI', title: 'ギザの大ピラミッド' },
   { city: 'マラケシュ',       code: 'RAK', title: 'ジャマ・エル・フナ広場' },
   { city: 'ケープタウン',      code: 'CPT', title: 'テーブルマウンテン' },
+  { city: 'エチオピア',      code: 'ADD', title: 'エチオピア' },
+  { city: 'タンザニア',      code: 'JRO', title: 'キリマンジャロ' },
+  { city: 'ザンジバル',      code: 'ZNZ', title: 'ザンジバル' },
+  { city: 'ナイロビ',        code: 'NBO', title: 'マサイマラ国立保護区' },
+  { city: 'マダガスカル',    code: 'TNR', title: 'マダガスカル' },
+  { city: 'セーシェル',      code: 'SEZ', title: 'セーシェル' },
+  { city: 'モーリシャス',    code: 'MRU', title: 'モーリシャス' },
+  { city: 'ボツワナ',        code: 'GBE', title: 'オカバンゴ・デルタ' },
+  { city: 'ナミビア',        code: 'WDH', title: 'ナミブ砂漠' },
+  { city: 'ザンビア',        code: 'LVI', title: 'ヴィクトリアの滝' },
+  { city: 'ガーナ',          code: 'ACC', title: 'ガーナ' },
+  { city: 'チュニジア',      code: 'TUN', title: 'チュニジア' },
+  // ── ヨーロッパ ──
   { city: 'パリ',           code: 'CDG', title: 'エッフェル塔' },
   { city: 'ロンドン',        code: 'LHR', title: 'ビッグ・ベン' },
   { city: 'ローマ',          code: 'FCO', title: 'コロッセオ' },
@@ -1021,29 +1058,87 @@ const DESTINATIONS = [
   { city: 'アテネ',          code: 'ATH', title: 'パルテノン神殿' },
   { city: 'アイスランド',     code: 'KEF', title: 'アイスランド' },
   { city: 'モスクワ',        code: 'SVO', title: '聖ワシリイ大聖堂' },
+  { city: 'ウィーン',        code: 'VIE', title: 'シェーンブルン宮殿' },
+  { city: 'ブダペスト',      code: 'BUD', title: 'ブダペスト' },
+  { city: 'ダブリン',        code: 'DUB', title: 'ダブリン' },
+  { city: 'リスボン',        code: 'LIS', title: 'リスボン' },
+  { city: 'チューリッヒ',    code: 'ZRH', title: 'マッターホルン' },
+  { city: 'ブリュッセル',    code: 'BRU', title: 'ブリュッセル' },
+  { city: 'コペンハーゲン',   code: 'CPH', title: 'コペンハーゲン' },
+  { city: 'ストックホルム',   code: 'ARN', title: 'ストックホルム' },
+  { city: 'ヘルシンキ',      code: 'HEL', title: 'ヘルシンキ' },
+  { city: 'タリン',          code: 'TLL', title: 'タリン旧市街' },
+  { city: 'トビリシ',        code: 'TBS', title: 'ジョージア（国）' },
+  { city: 'アルメニア',      code: 'EVN', title: 'アルメニア' },
+  { city: 'コトル',          code: 'TGD', title: 'モンテネグロ' },
+  { city: 'ドゥブロヴニク',   code: 'DBV', title: 'ドゥブロヴニク' },
+  // ── アメリカ大陸 ──
   { city: 'ニューヨーク',     code: 'JFK', title: '自由の女神像' },
   { city: 'サンフランシスコ',  code: 'SFO', title: 'ゴールデンゲートブリッジ' },
   { city: 'メキシコシティ',    code: 'MEX', title: 'テオティワカン' },
   { city: 'リオデジャネイロ',  code: 'GIG', title: 'コルコバードのキリスト像' },
   { city: 'マチュ・ピチュ',    code: 'CUZ', title: 'マチュ・ピチュ' },
+  { city: 'ブエノスアイレス',  code: 'EZE', title: 'ブエノスアイレス' },
+  { city: 'ウユニ塩湖',      code: 'UYU', title: 'ウユニ塩原' },
+  { city: 'パタゴニア',      code: 'FTE', title: 'パタゴニア' },
+  { city: 'ハバナ',          code: 'HAV', title: 'ハバナ' },
+  { city: 'ジャマイカ',      code: 'KIN', title: 'ジャマイカ' },
+  { city: 'コスタリカ',      code: 'SJO', title: 'コスタリカ' },
+  { city: 'ガラパゴス諸島',   code: 'GPS', title: 'ガラパゴス諸島' },
+  { city: 'バンクーバー',    code: 'YVR', title: 'バンクーバー' },
+  { city: 'ナイアガラの滝',   code: 'YYZ', title: 'ナイアガラの滝' },
+  { city: 'パナマ',          code: 'PTY', title: 'パナマ運河' },
+  { city: 'カルタヘナ',      code: 'CTG', title: 'カルタヘナ・デ・インディアス' },
+  { city: 'グアテマラ',      code: 'GUA', title: 'ティカル' },
+  // ── オセアニア ──
   { city: 'シドニー',        code: 'SYD', title: 'シドニー・オペラハウス' },
   { city: 'クイーンズタウン',  code: 'ZQN', title: 'ミルフォード・サウンド' },
   { city: 'ホノルル',        code: 'HNL', title: 'ダイヤモンドヘッド' },
+  { city: 'フィジー',        code: 'NAN', title: 'フィジー' },
+  { city: 'タヒチ',          code: 'PPT', title: 'ボラボラ島' },
+  { city: 'パラオ',          code: 'ROR', title: 'パラオ' },
+  { city: 'サモア',          code: 'APW', title: 'サモア' },
+  { city: 'バヌアツ',        code: 'VLI', title: 'バヌアツ' },
+  { city: 'ケアンズ',        code: 'CNS', title: 'グレートバリアリーフ' },
+  { city: 'イースター島',    code: 'IPC', title: 'イースター島' },
 ];
 const DEST_PROGRESS_KEY = 'vq_dest_progress';
 const DEST_IMG_CACHE_KEY = 'vq_dest_img_cache';
 
+function randDestIndex(excludeIdx) {
+  if (DESTINATIONS.length <= 1) return 0;
+  let i;
+  do { i = Math.floor(Math.random() * DESTINATIONS.length); } while (i === excludeIdx);
+  return i;
+}
+
 function getDeckProgress() { return LS.get(DEST_PROGRESS_KEY) || {}; }
-function getDeckLap(deckId) { return getDeckProgress()[deckId] || 0; }
-// 「学習をはじめる」が押されるたびに呼ぶ。1回のセッションの間は目的地を固定するため、
-// セッション完了時ではなく開始時に呼ぶ設計にしている。
+// 各単語帳につき {current, next} のインデックスを保持する。current が「今いる場所」、
+// next は「次に学習をはじめた時にランダムで向かう場所」を、あらかじめ1つだけ確定させて
+// おいたもの（プレビュー表示のため）。
+function getDeckDest(deckId) {
+  const p = getDeckProgress();
+  let entry = p[deckId];
+  if (!entry || typeof entry.current !== 'number') {
+    const current = randDestIndex();
+    const next = randDestIndex(current);
+    entry = { current, next };
+    p[deckId] = entry;
+    LS.set(DEST_PROGRESS_KEY, p);
+  }
+  return entry;
+}
+function getCurrentDestination(deckId) { return DESTINATIONS[getDeckDest(deckId).current]; }
+function getNextDestination(deckId) { return DESTINATIONS[getDeckDest(deckId).next]; }
+// 「学習をはじめる」が押されるたびに呼ぶ。あらかじめ決めておいた next へ実際に移動し、
+// さらに次のプレビュー用に、新しい next をランダムに決め直す。
 function advanceDeckLap(deckId) {
   const p = getDeckProgress();
-  p[deckId] = (p[deckId] || 0) + 1;
+  const entry = getDeckDest(deckId); // 未初期化なら先に確定させる
+  const newCurrent = entry.next;
+  const newNext = randDestIndex(newCurrent);
+  p[deckId] = { current: newCurrent, next: newNext };
   LS.set(DEST_PROGRESS_KEY, p);
-}
-function getCurrentDestination(deckId) {
-  return DESTINATIONS[getDeckLap(deckId) % DESTINATIONS.length];
 }
 
 function getDestImgCache() { return LS.get(DEST_IMG_CACHE_KEY) || {}; }
