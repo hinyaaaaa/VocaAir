@@ -234,7 +234,7 @@ const daysUntil = ts => Math.max(0, Math.ceil((ts - Date.now()) / 86400000));
    UTILS
    ============================================================ */
 function esc(s) {
-  const d = document.createElement('div'); d.textContent = s||''; return d.innerHTML;
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 function shuffle(a) {
   for (let i = a.length-1; i > 0; i--) {
@@ -262,7 +262,7 @@ function confirm(msg, sub, onOk, icon='🗑️') {
 /* ============================================================
    NAVIGATION
    ============================================================ */
-const NAV = { home:'nav-home', import:'nav-import', settings:'nav-settings', quiz:'nav-home', result:'nav-home', board:'nav-home' };
+const NAV = { words:'nav-home', home:'nav-home', import:'nav-import', settings:'nav-settings', quiz:'nav-home', result:'nav-home', board:'nav-home' };
 function showScreen(id) {
   // クイズ以外の画面に移る場合、正解後の自動送りタイマーが残っていたら破棄する
   // (残したままだと、後で戻ってきた時に無関係なカードが1枚飛ばされてしまう)
@@ -274,6 +274,8 @@ function showScreen(id) {
   if (id === 'home') renderHome();
   if (id === 'import') { clearImport(); populateImportDeckSelect(); }
   if (id === 'settings') initSettings();
+  if (id === 'words') renderWords();
+  document.body.classList.toggle('focus', id === 'quiz');
   showDestinationLayer(id === 'board' || id === 'quiz' || id === 'result');
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
@@ -341,9 +343,9 @@ function renderHome() {
   el.innerHTML = decks.map(d => {
     const dw = words.filter(w => w.deckId === d.id);
     const due = dw.filter(w => (w.nextDue||0) <= now).length;
-    const mastered = dw.length ? Math.round(((dw.length - due) / dw.length) * 100) : 0;
+    const mastered = dw.length ? Math.round(dw.filter(w => w.state === 'review' && (w.interval||0) >= 21).length / dw.length * 100) : 0;
     const dest = getCurrentDestination(d.id);
-    return `<div class="flight-row glass" onclick="openBoarding(${d.id})">
+    return `<div class="flight-row" role="button" tabindex="0" onkeydown="if(event.target===this&&(event.key==='Enter'||event.key===' ')){event.preventDefault();openBoarding(${d.id})}" onclick="openBoarding(${d.id})">
       <div class="fr-code-col">
         <span class="fr-code">${esc(dest.code)}</span>
         <span class="fr-code-city">${esc(dest.city)}</span>
@@ -352,10 +354,10 @@ function renderHome() {
         <div class="fr-name">${esc(d.name)}</div>
         <div class="fr-meta">
           <span>${dw.length} 語</span>
-          ${due>0 ? `<span class="fr-due">復習 ${due}</span>` : `<span class="fr-mastered">習得 ${mastered}%</span>`}
+          ${due>0 ? `<span class="fr-due">復習 ${due}</span>` : ''}<span class="fr-mastered">定着 ${mastered}%</span>
         </div>
       </div>
-      <button class="fr-del" onclick="event.stopPropagation();confirmDeleteDeck(${d.id},'${esc(d.name)}')" aria-label="この単語帳を削除">
+      <button class="fr-del" onclick="event.stopPropagation();confirmDeleteDeck(${d.id})" aria-label="この単語帳を削除">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
       </button>
       <svg class="fr-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
@@ -480,6 +482,7 @@ function renderBoardScreen(deckId) {
         </div>
       </div>
 
+      <button class="btn board-manage" onclick="openWords(${deckId})">単語を管理（一覧・追加・編集）</button>
       <button class="btn primary board-start-btn" onclick="startQuizDeck(${deckId})">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
         学習をはじめる
@@ -489,7 +492,8 @@ function renderBoardScreen(deckId) {
   `;
 }
 
-function confirmDeleteDeck(id, name) {
+function confirmDeleteDeck(id) {
+  const name = (loadDecks().find(d => d.id === id) || {}).name || '';
   confirm(`「${name}」を削除しますか？`, 'この単語帳の全ての単語も削除されます', () => deleteDeck(id));
 }
 function deleteDeck(id) {
@@ -515,6 +519,7 @@ const SESSION_KEY = 'vq_session';
 document.addEventListener('keydown', (e) => {
   const quizScreen = document.getElementById('screen-quiz');
   if (!quizScreen || !quizScreen.classList.contains('active')) return;
+  if (qAnswered && e.key === 'Enter' && Date.now() - qAnsweredAt > 350 && document.getElementById('q-next-btn').style.display !== 'none') { e.preventDefault(); nextCard(); return; }
 
   if (!qAnswered && qCardFormat === 'choice' && ['1','2','3','4'].includes(e.key)) {
     const btn = document.querySelector(`#q-answer-area .choice-btn[data-key="${e.key}"]`);
@@ -698,12 +703,21 @@ function selectChoice(btn, value) {
   handleAnswered(correct, w);
 }
 
+// 入力式の判定：全角半角・大文字小文字・前後空白を無視し、
+// 「、，,;；/／」で区切られた複数の意味はどれか1つ一致すれば正解。丸括弧内の補足は無視。
+function isAnswerCorrect(ans, correct) {
+  const norm = s => normalizeKey(s).replace(/[（(][^）)]*[）)]/g, '').replace(/[\s　]+/g, '');
+  const a = norm(ans);
+  if (!a) return false;
+  if (normalizeKey(ans) === normalizeKey(correct)) return true;
+  return String(correct).split(/[、,，;；\/／]/).map(norm).filter(Boolean).includes(a) || norm(correct) === a;
+}
 function checkAnswer() {
   if (!qInput || qInput.disabled || qAnswered) return;
   qAnswered = true;
   const w = qWords[qIdx];
   const ans = qInput.value.trim();
-  const correct = ans === qCorrectAnswer;
+  const correct = isAnswerCorrect(ans, qCorrectAnswer);
   qInput.className = 'blank-input ' + (correct ? 'correct' : 'wrong');
   qInput.disabled = true;
   document.getElementById('q-check-btn').style.display = 'none';
@@ -724,17 +738,15 @@ function resetStamp() {
 function triggerStamp(correct) {
   const stamp = document.getElementById('stampEl');
   const inner = document.getElementById('stampSvgInner');
-  const color = correct ? '#324a68' : '#a8402d';
+  const color = 'currentColor';
   stamp.className = 'stamp ' + (correct ? 'correct' : 'wrong');
   inner.innerHTML = correct
     ? `<circle class="stamp-ring" cx="75" cy="75" r="54" stroke="${color}"/>
        <circle cx="75" cy="75" r="44" fill="none" stroke="${color}" stroke-width="2" opacity="0.55"/>
-       <path d="M50,78 L68,96 L104,54" fill="none" stroke="${color}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
-       <text x="75" y="129" text-anchor="middle" font-family="'Space Mono',monospace" font-weight="700" font-size="12" fill="${color}" letter-spacing="2">APPROVED</text>`
+       <path d="M50,78 L68,96 L104,54" fill="none" stroke="${color}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>`
     : `<circle class="stamp-ring" cx="75" cy="75" r="54" stroke="${color}"/>
        <line x1="52" y1="52" x2="98" y2="98" stroke="${color}" stroke-width="8" stroke-linecap="round"/>
-       <line x1="98" y1="52" x2="52" y2="98" stroke="${color}" stroke-width="8" stroke-linecap="round"/>
-       <text x="75" y="129" text-anchor="middle" font-family="'Space Mono',monospace" font-weight="700" font-size="12" fill="${color}" letter-spacing="2">DENIED</text>`;
+       <line x1="98" y1="52" x2="52" y2="98" stroke="${color}" stroke-width="8" stroke-linecap="round"/>`;
   void stamp.offsetWidth;
   stamp.style.animation = 'stamp-slam .6s var(--land) both';
   if (!correct) {
@@ -748,6 +760,7 @@ function triggerStamp(correct) {
 }
 
 function handleAnswered(correct, w) {
+  qAnsweredAt = Date.now();
   const fb = document.getElementById('q-feedback');
   const elapsed = Date.now() - (qCardShownAt || Date.now());
   triggerStamp(correct);
@@ -769,7 +782,7 @@ function handleAnswered(correct, w) {
     document.getElementById('q-next-btn').style.display = '';
     saveSession();
     updateProgress();
-    scheduleAdvance(1700); // 正解を確認できるよう少し長めに待ってから自動で次へ
+    if (autoAdvance()) scheduleAdvance(1700);
     return;
   }
 
@@ -782,7 +795,7 @@ function handleAnswered(correct, w) {
   applyGrade(w, grade);
   saveSession();
   updateProgress();
-  scheduleAdvance(550); // 正解はテンポよく次へ
+  if (autoAdvance()) scheduleAdvance(550); else document.getElementById('q-next-btn').style.display = '';
 }
 
 /**
@@ -794,12 +807,12 @@ function handleAnswered(correct, w) {
 function autoGrade(elapsedMs, format, answerLen) {
   let easyT, hardT;
   if (format === 'choice') {
-    easyT = 2200;   // 2.2秒以内の即答 → Easy
-    hardT = 6500;   // 6.5秒を超えたら → Hard
+    easyT = 2500;   // 2.2秒以内の即答 → Easy
+    hardT = 10000;   // 6.5秒を超えたら → Hard
   } else {
     const base = 1200 + 260 * Math.max(1, answerLen); // 文字数ぶんのタイピング時間を考慮
     easyT = base * 0.55;
-    hardT = base * 1.6;
+    hardT = base * 2.4;
   }
   if (elapsedMs <= easyT) return 4; // Easy
   if (elapsedMs <= hardT) return 3; // Good
@@ -1196,7 +1209,7 @@ function showDestinationLayer(show) {
   document.getElementById('dest-scrim').classList.toggle('show', show);
 }
 
-function initSettings() {}
+function initSettings() { const c = document.getElementById('set-auto'); if (c) c.checked = autoAdvance(); }
 
 /* ============================================================
    RENDER ALL + INIT
@@ -1204,3 +1217,77 @@ function initSettings() {}
 function renderAll() { renderHome(); }
 
 renderAll();
+
+
+/* ============================================================
+   設定・単語管理・共通操作
+   ============================================================ */
+let qAnsweredAt = 0;
+const autoAdvance = () => { try { return localStorage.getItem('va_auto') !== '0'; } catch (e) { return true; } };
+function setAutoAdvance(on) { try { localStorage.setItem('va_auto', on ? '1' : '0'); } catch (e) {} }
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+});
+
+let wordsDeckId = null;
+let editingWordId = null;
+function openWords(deckId) {
+  wordsDeckId = deckId;
+  document.getElementById('word-search').value = '';
+  showScreen('words');
+}
+function renderWords() {
+  const deck = loadDecks().find(d => d.id === wordsDeckId);
+  if (!deck) { showScreen('home'); return; }
+  const all = loadWords().filter(w => w.deckId === wordsDeckId);
+  const q = normalizeKey(document.getElementById('word-search').value);
+  const list = q ? all.filter(w => normalizeKey(w.word + ' ' + w.trans + ' ' + (w.memo || '')).includes(q)) : all;
+  const now = Date.now();
+  document.getElementById('words-title').textContent = deck.name;
+  document.getElementById('words-count').textContent = q ? `${list.length} / ${all.length} 語` : `${all.length} 語`;
+  document.getElementById('word-list').innerHTML = list.length ? list.map(w => {
+    const due = (w.nextDue || 0) <= now ? '復習待ち' : `次回 ${Math.ceil((w.nextDue - now) / 86400000)}日後`;
+    return `<div class="word-row"><div class="wr-main"><div class="wr-word">${esc(w.word)}</div>
+      <div class="wr-trans">${esc(w.trans)}</div>
+      <div class="wr-meta">${due}${w.memo ? ' ・ ' + esc(w.memo) : ''}</div></div>
+      <button class="icon-btn" data-id="${esc(w.id)}" aria-label="編集" onclick="openWordModal(this.dataset.id)">✎</button>
+      <button class="icon-btn del" data-id="${esc(w.id)}" aria-label="削除" onclick="deleteWord(this.dataset.id)">✕</button></div>`;
+  }).join('') : `<div class="empty"><div class="empty-icon">📝</div>${all.length ? '見つかりませんでした' : 'まだ単語がありません<br><small>「＋ 追加」またはExcelで取り込めます</small>'}</div>`;
+}
+function openWordModal(id) {
+  const w = id != null ? loadWords().find(x => String(x.id) === String(id)) : null;
+  editingWordId = w ? w.id : null;
+  document.getElementById('word-modal-title').textContent = w ? '単語を編集' : '単語を追加';
+  document.getElementById('word-in').value = w ? w.word : '';
+  document.getElementById('trans-in').value = w ? w.trans : '';
+  document.getElementById('memo-in').value = w ? (w.memo || '') : '';
+  document.getElementById('modal-word').classList.add('open');
+  setTimeout(() => document.getElementById('word-in').focus(), 60);
+}
+function saveWord() {
+  const word = document.getElementById('word-in').value.trim();
+  const trans = document.getElementById('trans-in').value.trim();
+  const memo = document.getElementById('memo-in').value.trim();
+  if (!word || !trans) { toast('単語と意味は必須です'); return; }
+  const words = loadWords();
+  if (editingWordId != null) {
+    const w = words.find(x => String(x.id) === String(editingWordId));
+    if (w) Object.assign(w, { word, trans, memo });
+  } else {
+    words.push({ id: Date.now() + Math.random(), deckId: wordsDeckId, word, trans, memo, ef: SRS.startEf, interval: 1, reps: 0, nextDue: 0, state: 'new', lapses: 0, learningStep: 0 });
+  }
+  saveWords(words);
+  closeModal('modal-word');
+  toast(editingWordId != null ? '更新しました' : '追加しました');
+  renderWords();
+}
+function deleteWord(id) {
+  const w = loadWords().find(x => String(x.id) === String(id));
+  if (!w) return;
+  confirm(`「${w.word}」を削除しますか？`, 'この操作は取り消せません', () => {
+    saveWords(loadWords().filter(x => String(x.id) !== String(id)));
+    renderWords();
+  });
+}
