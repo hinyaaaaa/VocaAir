@@ -1,0 +1,3 @@
+VAPID_PRIVATE_KEEP_SECRET.json
+node_modules/
+worker/.wrangler/

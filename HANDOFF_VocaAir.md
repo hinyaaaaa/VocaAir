@@ -17,15 +17,22 @@ VocaAirは、Excelから単語をインポートしてSRS（間隔反復）で�
 
 ## 2. ファイル構成
 
-3ファイルに責務分離済み（単一index.htmlから移行）。**同じフォルダに3つとも置くこと。** `<script src>`のみを使っており`type="module"`は使っていないため、`file://`で直接開いても動く。
+**同じフォルダに全て置くこと。** `<script src>`のみ（`type="module"`なし）。ただしService Worker・通知はHTTPS（GitHub Pages等）でのみ動く（`file://`では景色の取得とオフライン保存以外は無効）。
 
 ```
-index.html   … 構造のみ（<style>や<script>の中身は持たない）
-styles.css   … 全スタイル
-app.js       … 全ロジック（データ層・SRS・インポート・出題エンジン・目的地システム）
+index.html            … 構造のみ
+styles.css            … 全スタイル（フォントは明朝体 Zen Old Mincho、太字は最大600）
+app.js                … データ層・SRS・インポート・出題エンジン・目的地(current/next)管理
+scenery-data.js       … 景色の基準地点248件（名前・飾りコード・緯度経度）。自動生成物
+scenery.js            … 景色の取得/絞り込み/オフライン保存/表示（window.Scenery）
+notify.js             … 通知（window.Notify）。設定画面と連動
+config.js             … vapidPublicKey / pushApi（通知サーバーURL）
+sw.js                 … Service Worker（オフライン + Web Push受信）
+manifest.webmanifest  … ホーム画面追加用。icons/ にアイコン
+worker/               … 通知サーバー(Cloudflare Workers)。setup.ps1 で初回セットアップ。test.mjs あり
 ```
 
-外部依存: `xlsx.full.min.js`（CDN, Excelインポート用）、Google Fonts（Zen Old Mincho / Zen Kaku Gothic New / Space Mono）。いずれも`<head>`内で読み込み。
+外部依存: `xlsx.full.min.js`（CDN, Excelインポート用）、Google Fonts（Zen Old Mincho / Space Mono）。いずれもSWが初回取得後にキャッシュする。
 
 ## 3. デザインシステム（styles.css）
 
@@ -53,28 +60,28 @@ app.js       … 全ロジック（データ層・SRS・インポート・出題
 
 ナビバーのアイコンは自前で描いた3種（一覧＝搭乗券、追加＝＋つき書類、設定＝シンプルな歯車）。新しいアイコンを足す時は`stroke-width="2"` `stroke-linecap="round"` `stroke-linejoin="round"`の線の太さ・丸みに揃えること。
 
-## 6. 目的地システム（app.js内 "DESTINATIONS" セクション）
+## 6. 景色システム（scenery.js / app.js "DESTINATIONS" セクション）
 
-- `DESTINATIONS`配列に100件。有名観光地に加えて、ブータン・キルギス・ザンジバル・モンテネグロ・ウユニ塩湖・イースター島など、あまり知られていない国・地域も意図的に多く混ぜている（アジア25 / 中東8 / アフリカ15 / ヨーロッパ25 / 南北アメリカ17 / オセアニア10）
-- 各エントリは `{ city, code, title }`
-  - `city`: 画面表示用の地名
-  - `code`: 3レターの空港コード風の飾り（実在IATAコードに寄せているが厳密な正確性は保証していない。装飾目的でリンク等には使っていないので実害なし）
-  - `title`: 写真取得のためのWikipedia記事タイトル
+- **地点**: 基準地点248 × 61区画（中心+周囲4/9/16/25kmの同心円）= **15,128通り**。`Scenery.place(idx)`が{city, code, lat, lon, radius}を返す。`code`は飾り（実在IATAとは無関係）
+- **写真**: Wikimedia Commons の `generator=geosearch`（File名前空間、半径≤10km）で位置情報つき写真を取得。旧実装のWikipedia記事サムネイル(pageimages)は**国旗・地図が選ばれる原因だったので廃止**
+- **絞り込み**（`acceptPage`）: JPEGのみ／横長(1.25〜2.4)／幅1800px以上／ライセンスがCC・PD系／タイトル・説明に旗・地図・紋章・ロゴ・人物・室内・乗り物・看板などを含まない。それでも混ざる写真は、画面右上の「この写真は表示しない」で恒久的に除外できる（`va_scn_block`）
+- **出典表示**: CC-BY(-SA)のため、作者・ライセンス・元ページへのリンクを画面右上に常時表示（削除しないこと）
+- **選択方式**: 単語帳ごとに `localStorage['vq_dest_progress_v2'] = { [deckId]: { current, next } }`（値は地点index）。`advanceDeckLap` が「学習をはじめる」時（再開時は除く）に next へ移動。直近60地点は避ける
+- **オフライン**: 表示した写真は Cache Storage `va-photos-v1` に保存（上限80枚、古い順に削除）。起動6秒後に保存が12枚未満なら自動で12枚ダウンロード（通信量節約モード時は行わない）。設定画面で20/40/80枚を手動保存・削除。通信できない時は保存済みの景色からランダム表示、何も無ければグラデーション
+- 地点→写真の対応は `va_scn_pick` に最大250件キャッシュ（同じ地点は同じ写真・再通信なし）
 
-### 選択方式（ランダム・current/nextモデル）
+## 6.5 通知（notify.js / sw.js / worker/）
 
-単語帳ごとに `localStorage['vq_dest_progress']` に `{ [deckId]: { current, next } }` を保持。
+- 設定画面で ON/OFF と時刻を設定。iPhoneは **iOS 16.4以降 + 「ホーム画面に追加」したアプリ** からのみ許可できる
+- **アプリを閉じていても届く通知にはサーバーが必要**（静的サイトだけではiPhoneのPWAは時刻指定の通知を出せない）。`worker/`（Cloudflare Workers + KV + 毎分cron）が、端末の現地時刻が設定時刻になったら空のWeb Pushを送り、`sw.js`が端末内の復習数から本文を作る
+- `config.js` の `pushApi` が空の間は「アプリを開いている間だけ通知」にフォールバック（設定画面にもそう表示される）
+- VAPID秘密鍵はリポジトリに入れない（`.gitignore`済み。Workerのシークレット `VAPID_PRIVATE_JWK` にのみ置く）
 
-- `current`: 今いる場所（インデックス）
-- `next`: 次に「学習をはじめる」を押した時に実際に移動する場所（あらかじめランダムに1つ確定させてある。ボーディング画面・結果画面での「次は◯◯へ」プレビュー表示に使う）
+## 6.6 出題の取りこぼし防止（app.js "QUIZ" セクション）
 
-`advanceDeckLap(deckId)` が「学習をはじめる」ボタン押下時（`startQuizDeck`のフレッシュスタート時のみ。セッション再開時は呼ばない）に呼ばれ、`current = next`、そして新しい`next`をランダムに選び直す。結果画面（`showResult`）ではstate操作はせず、確定済みの値を読んで表示するだけ。
+`qCardSeq`（カード通し番号）・`qLockUntil`（表示直後0.45秒は回答不可）・`qNavAt`（次へ連打の無視）・`qDone/qOrigIds`（回答済み台帳）で、前カードの連打やタイマー競合、バックグラウンド復帰で問題が飛ばないようにしている。最後に未回答の単語が残っていれば結果画面の前に出し直す。挙動を変える時は下記テストを必ず通すこと。
 
-### 写真取得とフォールバック
-
-`fetchDestinationImage(title)` がWikipediaのpageimages APIを叩く（`ja.wikipedia.org` → 見つからなければ `en.wikipedia.org`）。取得成功時は `localStorage['vq_dest_img_cache']` にキャッシュ。
-
-取得できなかった場合（記事名の不一致、オフライン等）は`fallbackGradientFor(city)`が都市名から決定的に選ぶグラデーションを代わりに表示する。**つまり100件のうち多少タイトルが不正確なものがあっても、アプリが壊れて見えることはない。** ここは精度より堅牢性を優先した設計。
+テスト（開発用・リポジトリ外 /tmp/t にあった jsdom ベース）の観点: 通常進行／同一カード連打／新カード直後のゴーストタップ／手動+自動の二重送り／未回答で進まない／別カード由来の呼び出し／終端への飛び→出し直し／バックグラウンド／中断再開／入力式。
 
 ## 7. 主要な関数マップ（app.js）
 
@@ -93,9 +100,10 @@ app.js       … 全ロジック（データ層・SRS・インポート・出題
 
 ## 8. 未検証・要確認事項
 
-- **実機ブラウザでの見た目は未確認。** 一通りコード上の整合性（HTMLタグ対応、CSS波括弧対応、JS構文、onclickで参照する全関数の存在）は毎回チェック済みだが、実際にGitHub Pages等で開いての確認はできていない
-- `DESTINATIONS`のWikipediaタイトルは一部（特にマイナーな国・地域）が正しい記事名か未検証。ズレていてもフォールバックのグラデーションで代替されるだけなので機能は壊れないが、写真が出ない場所が一定数ある可能性はある
-- 3レターの`code`も同様に、実在の主要空港コードに寄せてはいるが厳密検証はしていない（装飾用途のみ）
+- **実機ブラウザでの見た目は未確認**（コード上の整合性とjsdomでのロジックテストのみ）
+- **Wikimedia Commons の実APIへの接続は未検証**（開発環境からは到達できず、モック応答でのみ検証）。実機で初回に写真が出ること、旗・地図が出ないことを確認すること。もし特定の写真が合わなければ「この写真は表示しない」で除外される
+- **通知の実機・実サーバーでの配信は未検証**。Worker側の署名(VAPID/ES256)・時刻判定・購読管理は `worker/test.mjs` で検証済み
+- `worker/setup.ps1` は未実行（PowerShellで書いただけ）
 
 ## 9. 次にやるとよさそうなこと（未着手・提案）
 

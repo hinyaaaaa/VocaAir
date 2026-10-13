@@ -514,12 +514,31 @@ let qCardShownAt = 0; // このカードが表示された時刻(ms) — 回答�
 let qAdvanceTimer = null; // 正解後の自動送りタイマーのID。二重発火・カード飛ばし防止のため常に管理する
 const SESSION_KEY = 'vq_session';
 
+// ---- 出題の取りこぼし（問題が飛ぶ）防止 ------------------------------------
+// 1) カードに通し番号(qCardSeq)を振り、自動送り・手動送りは「そのカード由来」の時だけ有効にする
+// 2) 回答していないカードでは絶対に次へ進めない
+// 3) 新しいカードの表示直後(Q_LOCK_MS)は回答操作を受け付けない（前のカードの連打・ゴーストタップ対策）
+// 4) 次へ進む操作の連打(Q_NAV_GAP_MS以内)は無視する
+// 5) アプリが裏に回ったら自動送りを止め、戻った時に「次へ」を押して進める
+// 6) 最後に「一度も回答されていない単語」が残っていれば、結果画面の前に必ず出題し直す
+const Q_LOCK_MS = 450, Q_NAV_GAP_MS = 400, Q_MIN_READ_MS = 250;
+let qCardSeq = 0, qLockUntil = 0, qNavAt = 0;
+let qOrigIds = [];          // このセッションで出題すべき単語ID（重複なし）
+let qDone = new Set();      // 回答済みの単語ID
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && qAdvanceTimer) {
+    clearTimeout(qAdvanceTimer); qAdvanceTimer = null;
+    if (qAnswered) document.getElementById('q-next-btn').style.display = '';
+  }
+});
+
 // キーボードショートカット: 出題中は 1〜4 キーで4択を選択できる。
 // (以前あったEnterでの次送りは、自動送りと競合しやすかったため廃止)
 document.addEventListener('keydown', (e) => {
   const quizScreen = document.getElementById('screen-quiz');
   if (!quizScreen || !quizScreen.classList.contains('active')) return;
-  if (qAnswered && e.key === 'Enter' && Date.now() - qAnsweredAt > 350 && document.getElementById('q-next-btn').style.display !== 'none') { e.preventDefault(); nextCard(); return; }
+  if (e.repeat) return; // キーの押しっぱなしで連続して進まないように
+  if (qAnswered && e.key === 'Enter' && Date.now() - qAnsweredAt > 350 && document.getElementById('q-next-btn').style.display !== 'none') { e.preventDefault(); nextCard(qCardSeq); return; }
 
   if (!qAnswered && qCardFormat === 'choice' && ['1','2','3','4'].includes(e.key)) {
     const btn = document.querySelector(`#q-answer-area .choice-btn[data-key="${e.key}"]`);
@@ -532,7 +551,7 @@ document.addEventListener('keydown', (e) => {
 
 const saveSession = () => {
   if (qDeckId == null) return;
-  LS.set(SESSION_KEY, { deckId: qDeckId, mode: getMode(qDeckId), direction: qDirection, format: qFormat, wordIds: qWords.map(w => w.id), idx: qIdx, ok: qOk, ng: qNg });
+  LS.set(SESSION_KEY, { deckId: qDeckId, mode: getMode(qDeckId), direction: qDirection, format: qFormat, wordIds: qWords.map(w => w.id), idx: qIdx, ok: qOk, ng: qNg, orig: qOrigIds, done: [...qDone] });
 };
 const clearSession = () => localStorage.removeItem(SESSION_KEY);
 const loadSession = () => LS.get(SESSION_KEY);
@@ -581,6 +600,8 @@ function startQuizDeck(deckId, forceNew) {
         qIdx = Math.min(session.idx, qWords.length);
         qOk = session.ok || 0;
         qNg = session.ng || 0;
+        qOrigIds = Array.isArray(session.orig) && session.orig.length ? session.orig.map(String) : [...new Set(session.wordIds.map(String))];
+        qDone = new Set((session.done || []).map(String));
         document.getElementById('q-ok').textContent = qOk;
         document.getElementById('q-ng').textContent = qNg;
         // 再開の場合は目的地を進めない — 前回このセッションを開始した時点の目的地のまま
@@ -609,6 +630,8 @@ function startQuizDeck(deckId, forceNew) {
   qWords = shuffle([...words]);
   qDirection = direction; qFormat = format;
   qIdx = 0; qOk = 0; qNg = 0;
+  qOrigIds = [...new Set(qWords.map(w => String(w.id)))];
+  qDone = new Set();
   document.getElementById('q-ok').textContent = 0;
   document.getElementById('q-ng').textContent = 0;
   // 学習をはじめるたびに、次の目的地へ一つ進む
@@ -623,7 +646,17 @@ function loadCard() {
   // 新しいカードを表示する前に、前のカードの自動送りタイマーが
   // 万一残っていたら必ず破棄する（多重発火＝カード飛ばしの主因だったため）
   if (qAdvanceTimer) { clearTimeout(qAdvanceTimer); qAdvanceTimer = null; }
-  if (qIdx >= qWords.length) { showResult(); return; }
+  if (qIdx >= qWords.length) {
+    // 最後の安全確認: 一度も回答されていない単語が残っていたら、結果画面の前に出し直す
+    const byId = new Map(loadWords().map(x => [String(x.id), x]));
+    const missing = qOrigIds.filter(id => !qDone.has(id) && byId.has(id));
+    if (missing.length) {
+      missing.forEach(id => qWords.push(ensureSrsFields(byId.get(id))));
+      toast(`未回答の問題が${missing.length}問ありました。続けて出題します`);
+    } else { showResult(); return; }
+  }
+  qCardSeq++;
+  qLockUntil = Date.now() + Q_LOCK_MS;
   const w = qWords[qIdx];
   const promptField = qDirection === 'w2m' ? 'word' : 'trans';
   const answerField = qDirection === 'w2m' ? 'trans' : 'word';
@@ -642,6 +675,8 @@ function loadCard() {
 
   const area = document.getElementById('q-answer-area');
   area.innerHTML = '';
+  area.classList.add('locked'); // 表示直後は誤タップを受け付けない
+  { const seq = qCardSeq; setTimeout(() => { if (seq === qCardSeq) area.classList.remove('locked'); }, Q_LOCK_MS); }
   qInput = null;
 
   let cardFormat = qFormat;
@@ -691,7 +726,7 @@ function loadCard() {
 }
 
 function selectChoice(btn, value) {
-  if (qAnswered) return;
+  if (qAnswered || Date.now() < qLockUntil) return;
   qAnswered = true;
   const w = qWords[qIdx];
   const correct = normalizeKey(value) === normalizeKey(qCorrectAnswer);
@@ -713,7 +748,7 @@ function isAnswerCorrect(ans, correct) {
   return String(correct).split(/[、,，;；\/／]/).map(norm).filter(Boolean).includes(a) || norm(correct) === a;
 }
 function checkAnswer() {
-  if (!qInput || qInput.disabled || qAnswered) return;
+  if (!qInput || qInput.disabled || qAnswered || Date.now() < qLockUntil) return;
   qAnswered = true;
   const w = qWords[qIdx];
   const ans = qInput.value.trim();
@@ -761,6 +796,7 @@ function triggerStamp(correct) {
 
 function handleAnswered(correct, w) {
   qAnsweredAt = Date.now();
+  qDone.add(String(w.id));
   const fb = document.getElementById('q-feedback');
   const elapsed = Date.now() - (qCardShownAt || Date.now());
   triggerStamp(correct);
@@ -770,7 +806,12 @@ function handleAnswered(correct, w) {
   // 飛ばしは起きない。
   const scheduleAdvance = (delay) => {
     if (qAdvanceTimer) clearTimeout(qAdvanceTimer);
-    qAdvanceTimer = setTimeout(nextCard, delay);
+    const seq = qCardSeq;
+    qAdvanceTimer = setTimeout(() => {
+      qAdvanceTimer = null;
+      if (document.hidden) { document.getElementById('q-next-btn').style.display = ''; return; }
+      nextCard(seq);
+    }, delay);
   };
 
   if (!correct) {
@@ -835,7 +876,13 @@ function applyGrade(w, grade) {
   }
 }
 
-function nextCard() {
+function nextCard(seq) {
+  // 別のカード由来の呼び出し(古いタイマー等)・未回答・連打・回答直後すぎる操作では進めない
+  if (typeof seq === 'number' && seq !== qCardSeq) return;
+  if (!qAnswered) return;
+  const now = Date.now();
+  if (now - qNavAt < Q_NAV_GAP_MS || now - qAnsweredAt < Q_MIN_READ_MS) return;
+  qNavAt = now;
   if (qAdvanceTimer) { clearTimeout(qAdvanceTimer); qAdvanceTimer = null; }
   qIdx++; saveSession(); loadCard();
 }
@@ -998,218 +1045,74 @@ function clearImport() {
 }
 
 /* ============================================================
-   DESTINATIONS — a real-world "flight path" VocaAir travels along.
-   100 stops, mixing famous landmarks with lesser-known places, so
-   studying doubles as a small window onto the world. Every time
-   studying is *started* (not finished), the deck flies to a new,
-   randomly chosen stop. Photography is fetched live from Wikipedia
-   (ja→en fallback) and cached in localStorage. If no photo can be
-   found, a deterministic gradient stands in — the app never looks
-   broken, it just looks a little more abstract.
+   DESTINATIONS — 世界の景色をめぐる「フライト」
+   地点の定義・写真の取得・オフライン保存は scenery.js が担当する。
+   ここでは「単語帳ごとに今いる場所(current)と次の場所(next)」だけを管理する。
+   学習を *はじめる* たびに next へ移動し、新しい next をランダムに決める。
+   写真は国旗・地図を含まない風景写真のみ（scenery.js 参照）。
    ============================================================ */
-const DESTINATIONS = [
-  // ── アジア ──
-  { city: '東京',           code: 'NRT', title: '東京タワー' },
-  { city: '京都',           code: 'KIX', title: '伏見稲荷大社' },
-  { city: '大阪',           code: 'ITM', title: '大阪城' },
-  { city: '那覇',           code: 'OKA', title: '首里城' },
-  { city: 'ソウル',          code: 'ICN', title: '景福宮' },
-  { city: '台北',           code: 'TPE', title: '台北101' },
-  { city: '香港',           code: 'HKG', title: '香港' },
-  { city: '北京',           code: 'PEK', title: '故宮博物院' },
-  { city: '上海',           code: 'PVG', title: '上海' },
-  { city: 'バンコク',        code: 'BKK', title: 'ワット・アルン' },
-  { city: 'シンガポール',     code: 'SIN', title: 'マリーナベイ・サンズ' },
-  { city: 'バリ島',          code: 'DPS', title: 'タナロット寺院' },
-  { city: 'デリー',          code: 'DEL', title: 'タージ・マハル' },
-  { city: 'カトマンズ',       code: 'KTM', title: 'エベレスト' },
-  { city: 'ブータン',        code: 'PBH', title: 'ブータン' },
-  { city: 'スリランカ',      code: 'CMB', title: 'シーギリヤ' },
-  { city: 'ミャンマー',      code: 'RGN', title: 'バガン' },
-  { city: 'ラオス',         code: 'LPQ', title: 'ルアンパバーン' },
-  { city: 'モンゴル',        code: 'UBN', title: 'モンゴル' },
-  { city: 'ウズベキスタン',   code: 'TAS', title: 'サマルカンド' },
-  { city: 'カザフスタン',    code: 'ALA', title: 'カザフスタン' },
-  { city: 'キルギス',        code: 'FRU', title: 'キルギス' },
-  { city: 'バングラデシュ',   code: 'DAC', title: 'バングラデシュ' },
-  { city: 'ブルネイ',        code: 'BWN', title: 'ブルネイ' },
-  { city: 'モルディブ',      code: 'MLE', title: 'モルディブ' },
-  // ── 中東 ──
-  { city: 'ドバイ',          code: 'DXB', title: 'ブルジュ・ハリファ' },
-  { city: 'イスタンブール',    code: 'IST', title: 'アヤソフィア' },
-  { city: 'ヨルダン',        code: 'AMM', title: 'ペトラ' },
-  { city: 'オマーン',        code: 'MCT', title: 'オマーン' },
-  { city: 'ドーハ',          code: 'DOH', title: 'ドーハ' },
-  { city: 'レバノン',        code: 'BEY', title: 'レバノン' },
-  { city: 'エルサレム',      code: 'TLV', title: 'エルサレム旧市街' },
-  { city: 'サウジアラビア',   code: 'RUH', title: 'サウジアラビア' },
-  // ── アフリカ ──
-  { city: 'カイロ',          code: 'CAI', title: 'ギザの大ピラミッド' },
-  { city: 'マラケシュ',       code: 'RAK', title: 'ジャマ・エル・フナ広場' },
-  { city: 'ケープタウン',      code: 'CPT', title: 'テーブルマウンテン' },
-  { city: 'エチオピア',      code: 'ADD', title: 'エチオピア' },
-  { city: 'タンザニア',      code: 'JRO', title: 'キリマンジャロ' },
-  { city: 'ザンジバル',      code: 'ZNZ', title: 'ザンジバル' },
-  { city: 'ナイロビ',        code: 'NBO', title: 'マサイマラ国立保護区' },
-  { city: 'マダガスカル',    code: 'TNR', title: 'マダガスカル' },
-  { city: 'セーシェル',      code: 'SEZ', title: 'セーシェル' },
-  { city: 'モーリシャス',    code: 'MRU', title: 'モーリシャス' },
-  { city: 'ボツワナ',        code: 'GBE', title: 'オカバンゴ・デルタ' },
-  { city: 'ナミビア',        code: 'WDH', title: 'ナミブ砂漠' },
-  { city: 'ザンビア',        code: 'LVI', title: 'ヴィクトリアの滝' },
-  { city: 'ガーナ',          code: 'ACC', title: 'ガーナ' },
-  { city: 'チュニジア',      code: 'TUN', title: 'チュニジア' },
-  // ── ヨーロッパ ──
-  { city: 'パリ',           code: 'CDG', title: 'エッフェル塔' },
-  { city: 'ロンドン',        code: 'LHR', title: 'ビッグ・ベン' },
-  { city: 'ローマ',          code: 'FCO', title: 'コロッセオ' },
-  { city: 'ベネチア',        code: 'VCE', title: 'サン・マルコ広場' },
-  { city: 'バルセロナ',       code: 'BCN', title: 'サグラダ・ファミリア' },
-  { city: 'アムステルダム',    code: 'AMS', title: 'アムステルダム' },
-  { city: 'プラハ',          code: 'PRG', title: 'プラハ城' },
-  { city: 'サントリーニ',     code: 'JTR', title: 'サントリーニ島' },
-  { city: 'アテネ',          code: 'ATH', title: 'パルテノン神殿' },
-  { city: 'アイスランド',     code: 'KEF', title: 'アイスランド' },
-  { city: 'モスクワ',        code: 'SVO', title: '聖ワシリイ大聖堂' },
-  { city: 'ウィーン',        code: 'VIE', title: 'シェーンブルン宮殿' },
-  { city: 'ブダペスト',      code: 'BUD', title: 'ブダペスト' },
-  { city: 'ダブリン',        code: 'DUB', title: 'ダブリン' },
-  { city: 'リスボン',        code: 'LIS', title: 'リスボン' },
-  { city: 'チューリッヒ',    code: 'ZRH', title: 'マッターホルン' },
-  { city: 'ブリュッセル',    code: 'BRU', title: 'ブリュッセル' },
-  { city: 'コペンハーゲン',   code: 'CPH', title: 'コペンハーゲン' },
-  { city: 'ストックホルム',   code: 'ARN', title: 'ストックホルム' },
-  { city: 'ヘルシンキ',      code: 'HEL', title: 'ヘルシンキ' },
-  { city: 'タリン',          code: 'TLL', title: 'タリン旧市街' },
-  { city: 'トビリシ',        code: 'TBS', title: 'ジョージア（国）' },
-  { city: 'アルメニア',      code: 'EVN', title: 'アルメニア' },
-  { city: 'コトル',          code: 'TGD', title: 'モンテネグロ' },
-  { city: 'ドゥブロヴニク',   code: 'DBV', title: 'ドゥブロヴニク' },
-  // ── アメリカ大陸 ──
-  { city: 'ニューヨーク',     code: 'JFK', title: '自由の女神像' },
-  { city: 'サンフランシスコ',  code: 'SFO', title: 'ゴールデンゲートブリッジ' },
-  { city: 'メキシコシティ',    code: 'MEX', title: 'テオティワカン' },
-  { city: 'リオデジャネイロ',  code: 'GIG', title: 'コルコバードのキリスト像' },
-  { city: 'マチュ・ピチュ',    code: 'CUZ', title: 'マチュ・ピチュ' },
-  { city: 'ブエノスアイレス',  code: 'EZE', title: 'ブエノスアイレス' },
-  { city: 'ウユニ塩湖',      code: 'UYU', title: 'ウユニ塩原' },
-  { city: 'パタゴニア',      code: 'FTE', title: 'パタゴニア' },
-  { city: 'ハバナ',          code: 'HAV', title: 'ハバナ' },
-  { city: 'ジャマイカ',      code: 'KIN', title: 'ジャマイカ' },
-  { city: 'コスタリカ',      code: 'SJO', title: 'コスタリカ' },
-  { city: 'ガラパゴス諸島',   code: 'GPS', title: 'ガラパゴス諸島' },
-  { city: 'バンクーバー',    code: 'YVR', title: 'バンクーバー' },
-  { city: 'ナイアガラの滝',   code: 'YYZ', title: 'ナイアガラの滝' },
-  { city: 'パナマ',          code: 'PTY', title: 'パナマ運河' },
-  { city: 'カルタヘナ',      code: 'CTG', title: 'カルタヘナ・デ・インディアス' },
-  { city: 'グアテマラ',      code: 'GUA', title: 'ティカル' },
-  // ── オセアニア ──
-  { city: 'シドニー',        code: 'SYD', title: 'シドニー・オペラハウス' },
-  { city: 'クイーンズタウン',  code: 'ZQN', title: 'ミルフォード・サウンド' },
-  { city: 'ホノルル',        code: 'HNL', title: 'ダイヤモンドヘッド' },
-  { city: 'フィジー',        code: 'NAN', title: 'フィジー' },
-  { city: 'タヒチ',          code: 'PPT', title: 'ボラボラ島' },
-  { city: 'パラオ',          code: 'ROR', title: 'パラオ' },
-  { city: 'サモア',          code: 'APW', title: 'サモア' },
-  { city: 'バヌアツ',        code: 'VLI', title: 'バヌアツ' },
-  { city: 'ケアンズ',        code: 'CNS', title: 'グレートバリアリーフ' },
-  { city: 'イースター島',    code: 'IPC', title: 'イースター島' },
-];
-const DEST_PROGRESS_KEY = 'vq_dest_progress';
-const DEST_IMG_CACHE_KEY = 'vq_dest_img_cache';
-
-function randDestIndex(excludeIdx) {
-  if (DESTINATIONS.length <= 1) return 0;
-  let i;
-  do { i = Math.floor(Math.random() * DESTINATIONS.length); } while (i === excludeIdx);
-  return i;
-}
+const DEST_PROGRESS_KEY = 'vq_dest_progress_v2';
 
 function getDeckProgress() { return LS.get(DEST_PROGRESS_KEY) || {}; }
-// 各単語帳につき {current, next} のインデックスを保持する。current が「今いる場所」、
-// next は「次に学習をはじめた時にランダムで向かう場所」を、あらかじめ1つだけ確定させて
-// おいたもの（プレビュー表示のため）。
 function getDeckDest(deckId) {
   const p = getDeckProgress();
   let entry = p[deckId];
-  if (!entry || typeof entry.current !== 'number') {
-    const current = randDestIndex();
-    const next = randDestIndex(current);
+  if (!entry || typeof entry.current !== 'number' || entry.current >= Scenery.PLACE_COUNT || entry.next >= Scenery.PLACE_COUNT) {
+    const current = Scenery.randomPlaceIdx();
+    const next = Scenery.randomPlaceIdx(current);
     entry = { current, next };
     p[deckId] = entry;
     LS.set(DEST_PROGRESS_KEY, p);
   }
   return entry;
 }
-function getCurrentDestination(deckId) { return DESTINATIONS[getDeckDest(deckId).current]; }
-function getNextDestination(deckId) { return DESTINATIONS[getDeckDest(deckId).next]; }
-// 「学習をはじめる」が押されるたびに呼ぶ。あらかじめ決めておいた next へ実際に移動し、
-// さらに次のプレビュー用に、新しい next をランダムに決め直す。
+function getCurrentDestination(deckId) { return Scenery.place(getDeckDest(deckId).current); }
+function getNextDestination(deckId) { return Scenery.place(getDeckDest(deckId).next); }
 function advanceDeckLap(deckId) {
   const p = getDeckProgress();
-  const entry = getDeckDest(deckId); // 未初期化なら先に確定させる
+  const entry = getDeckDest(deckId);
   const newCurrent = entry.next;
-  const newNext = randDestIndex(newCurrent);
+  const newNext = Scenery.randomPlaceIdx(newCurrent);
   p[deckId] = { current: newCurrent, next: newNext };
   LS.set(DEST_PROGRESS_KEY, p);
+  Scenery.markVisited(newCurrent);
 }
-
-function getDestImgCache() { return LS.get(DEST_IMG_CACHE_KEY) || {}; }
-async function fetchWikiThumb(lang, title) {
-  const url = `https://${lang}.wikipedia.org/w/api.php?action=query&format=json&origin=*&prop=pageimages&piprop=thumbnail&pithumbsize=1600&redirects=1&titles=${encodeURIComponent(title)}`;
-  const res = await fetch(url);
-  const data = await res.json();
-  const pages = data && data.query && data.query.pages;
-  const page = pages && Object.values(pages)[0];
-  return (page && page.thumbnail && page.thumbnail.source) || null;
-}
-// Wikipedia の pageimages API から目的地の写真を取得する。日本語版で見つからなければ
-// 英語版も試す。一度取得した画像は localStorage にキャッシュし、次回以降はオフラインでも
-// 表示できるようにする。それでも見つからない場合は呼び出し側がグラデーションで代替する。
-async function fetchDestinationImage(title) {
-  const cache = getDestImgCache();
-  if (cache[title]) return cache[title];
-  let src = null;
-  try { src = await fetchWikiThumb('ja', title); } catch (e) { console.error(e); }
-  if (!src) { try { src = await fetchWikiThumb('en', title); } catch (e) { console.error(e); } }
-  if (src) { cache[title] = src; LS.set(DEST_IMG_CACHE_KEY, cache); }
-  return src;
-}
-
-// 写真が見つからなかった時の代替背景。都市名から決定的に選ぶので、同じ目的地なら
-// 常に同じ色合いになる（リロードのたびに変わって落ち着かない、を避けるため）。
-const FALLBACK_GRADIENTS = [
-  'linear-gradient(160deg,#2b3a67,#4a2545 60%,#7a4a2e)',
-  'linear-gradient(160deg,#1f3d3a,#2d5f56 55%,#e8b84b)',
-  'linear-gradient(160deg,#3a1f3d,#6b2d5f 55%,#e88a4b)',
-  'linear-gradient(160deg,#1a2f4a,#2d5f8f 55%,#d9c27a)',
-  'linear-gradient(160deg,#2f1f1a,#7a3a2e 55%,#e8c66a)',
-];
-function fallbackGradientFor(city) {
-  return FALLBACK_GRADIENTS[Math.abs(hashStr(city)) % FALLBACK_GRADIENTS.length];
-}
-
-let _destBgToken = 0;
-async function applyDestinationBackground(deckId) {
-  const dest = getCurrentDestination(deckId);
-  const token = ++_destBgToken;
-  const layer = document.getElementById('dest-bg');
-  layer.style.backgroundImage = fallbackGradientFor(dest.city); // 取得完了までの一時的な下地
-  const src = await fetchDestinationImage(dest.title);
-  if (token !== _destBgToken) return; // 別の目的地への切り替えが先に発生していれば無視
-  if (src) {
-    const img = new Image();
-    img.onload = () => { if (token === _destBgToken) layer.style.backgroundImage = `url("${src}")`; };
-    img.onerror = () => {}; // 取得失敗時はグラデーションのまま
-    img.src = src;
-  }
+function applyDestinationBackground(deckId) {
+  return Scenery.show(getCurrentDestination(deckId).idx);
 }
 function showDestinationLayer(show) {
   document.getElementById('dest-bg').classList.toggle('show', show);
   document.getElementById('dest-scrim').classList.toggle('show', show);
+  document.getElementById('dest-credit').classList.toggle('show', show);
 }
 
-function initSettings() { const c = document.getElementById('set-auto'); if (c) c.checked = autoAdvance(); }
+function initSettings() {
+  const c = document.getElementById('set-auto'); if (c) c.checked = autoAdvance();
+  Notify.render();
+  refreshSceneryInfo();
+}
+function refreshSceneryInfo(extra) {
+  const el = document.getElementById('scn-info'); if (!el) return;
+  el.textContent = `収録地点 ${Scenery.PLACE_COUNT.toLocaleString()}か所 ／ オフライン用に保存済み ${Scenery.offlineCount()}枚` + (extra ? '　' + extra : '');
+}
+async function downloadScenery() {
+  const btn = document.getElementById('scn-pack-btn');
+  const n = parseInt(document.getElementById('scn-n').value, 10) || 40;
+  if (!navigator.onLine) { toast('オフラインのため保存できません'); return; }
+  btn.disabled = true;
+  const r = await Scenery.prefetchPack(n, p => refreshSceneryInfo(`保存中… ${p.saved}/${p.want}`));
+  btn.disabled = false;
+  refreshSceneryInfo();
+  toast(r.saved ? `${r.saved}枚の景色を保存しました` : '新しく保存できた景色はありませんでした');
+}
+async function clearScenery() { await Scenery.clearOffline(); refreshSceneryInfo(); toast('保存した景色を消しました'); }
+
+// 起動時: 通知の初期化と、オフライン用の景色の自動保存（少なすぎる時だけ・通信量節約モードでは行わない）
+Notify.init();
+setTimeout(() => {
+  const saveData = navigator.connection && navigator.connection.saveData;
+  if (navigator.onLine && !saveData && Scenery.offlineCount() < 12) Scenery.prefetchPack(12);
+}, 6000);
 
 /* ============================================================
    RENDER ALL + INIT

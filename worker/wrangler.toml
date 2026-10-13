@@ -1,0 +1,16 @@
+name = "vocaair-push"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+VAPID_PUBLIC_KEY = "BLpaUhqBy-3zFj0w9oQBWi2bhVlXyU445Fb_UH94WVP3QCPU_4PdjzSuq9ut124_NafSVMC3WfwhhT-mGGaqxUY"
+VAPID_SUBJECT = "mailto:you@example.com"
+ALLOWED_ORIGIN = "https://hinyaaaaa.github.io"
+
+# setup.ps1 が KV を作成して id を書き込む
+[[kv_namespaces]]
+binding = "SUBS"
+id = "__KV_ID__"
