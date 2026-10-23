@@ -6,12 +6,44 @@ const LS = {
   get: k => { try{ return JSON.parse(localStorage.getItem(k)||'null'); }catch(e){ return null; } },
   set: (k,v) => localStorage.setItem(k, JSON.stringify(v)),
 };
+/* ------------------------------------------------------------
+   単語ID（v1.9.0 で修正）
+   以前は Date.now()+Math.random() で作っていたが、小数部が約4千通りしかなく、一括インポートで
+   同じミリ秒に作った語のIDが衝突していた（実データで 1,929語中126個のIDが重複）。IDが衝突すると、
+   採点が別の語の内容を上書きしたり、削除が巻き添えになったり、同期でクラウドに1語しか残らなかったりする。
+   ------------------------------------------------------------ */
+let _lastWordId = 0;
+function newWordId() {
+  let id = Date.now() + Math.random();
+  if (id <= _lastWordId) id = _lastWordId + 0.0005; // 同じミリ秒でも必ず増やす（1語ごとに別のID）
+  _lastWordId = id;
+  return id;
+}
+/** 重複しているIDを振り直す（最初の1語は元のIDのまま）。並び順だけで決まるので、同じデータなら端末が違っても同じ結果になる */
+function repairDuplicateWordIds(words) {
+  const used = new Set(words.map(w => String(w.id)));
+  const seen = new Set();
+  let fixed = 0;
+  for (const w of words) {
+    const key = String(w.id);
+    if (!seen.has(key)) { seen.add(key); continue; }
+    let cand, j = 1;
+    do { cand = Number(w.id) + 0.0005 * j; j++; } while (used.has(String(cand)));
+    used.add(String(cand));
+    w.id = cand;
+    fixed++;
+  }
+  return fixed;
+}
 const loadDecks = () => LS.get('vq_decks') || [];
-const saveDecks = d => LS.set('vq_decks', d);
+/* v1.9.0: 保存のたびに同期エンジンへ知らせる（同期を設定していなければ何もしない。他の端末へは少し遅らせてまとめて送られる） */
+const syncPing = () => { try { if (window.VaSync) window.VaSync.notifyLocalChange(); } catch (e) { /* 同期の不具合で保存を止めない */ } };
+const saveDecks = d => { LS.set('vq_decks', d); syncPing(); };
 const loadWords = () => LS.get('vq_words') || [];
-const saveWords = w => LS.set('vq_words', w);
+const saveWords = w => { LS.set('vq_words', w); syncPing(); };
 const loadSettings = () => LS.get('vq_settings') || { dim: 0.45 };
-const saveSettings = s => LS.set('vq_settings', s);
+const saveSettings = s => { LS.set('vq_settings', s); syncPing(); };
+const APP_VERSION = '1.9.0';
 const normalizeKey = s => String(s || '').trim().normalize('NFKC').toLowerCase();
 
 /* ============================================================
@@ -23,6 +55,7 @@ async function exportBackup() {
   const payload = {
     app: 'VocaAir',
     version: 1,
+    appVersion: APP_VERSION,
     exportedAt: new Date().toISOString(),
     decks: loadDecks(),
     words: loadWords(),
@@ -64,6 +97,57 @@ async function exportBackup() {
   toast('JSONファイルを書き出しました');
 }
 
+/* バックアップの検証・無害化：型が正しい値だけを通し、想定外のキーや入れ子は捨てる
+   （単語帳IDなどは画面の onclick に埋め込まれるため、数値以外は受け付けない） */
+const _BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+const _isObj = v => v && typeof v === 'object' && !Array.isArray(v);
+const _isNum = v => typeof v === 'number' && isFinite(v);
+/* 数値・文字列・真偽値だけを残す（入れ子や想定外の型は捨てる） */
+function _flat(o) {
+  const r = {};
+  for (const k of Object.keys(o)) {
+    if (_BAD_KEYS.has(k)) continue;
+    const v = o[k];
+    if (typeof v === 'string') r[k] = v.slice(0, 2000);
+    else if (typeof v === 'boolean' || _isNum(v)) r[k] = v;
+  }
+  return r;
+}
+/* 単語帳・単語・設定1件の検証。不正なら null（バックアップの復元と、他端末からの同期で共通に使う） */
+function cleanDeck(d) {
+  if (!_isObj(d) || !_isNum(d.id)) return null;
+  const x = _flat(d);
+  if (typeof x.name !== 'string') x.name = '';
+  if (!_isNum(x.createdAt)) x.createdAt = Date.now();
+  return x;
+}
+function cleanWord(w) {
+  if (!_isObj(w) || !_isNum(w.id) || !_isNum(w.deckId)) return null;
+  const x = _flat(w);
+  x.word = typeof x.word === 'string' ? x.word : '';
+  x.trans = typeof x.trans === 'string' ? x.trans : '';
+  x.memo = typeof x.memo === 'string' ? x.memo : '';
+  return x;
+}
+function cleanSettings(s) {
+  if (!_isObj(s)) return null;
+  const x = _flat(s);
+  if ('dim' in x) x.dim = _isNum(x.dim) ? Math.min(1, Math.max(0, x.dim)) : 0.45;
+  if ('newCardsPerDay' in x) x.newCardsPerDay = _isNum(x.newCardsPerDay) ? Math.min(10000, Math.max(0, Math.round(x.newCardsPerDay))) : 20;
+  return x;
+}
+function sanitizeBackup(data) {
+  const MAX_DECKS = 2000, MAX_WORDS = 100000;
+  if (!data || typeof data !== 'object' || !Array.isArray(data.decks) || !Array.isArray(data.words)) return null;
+  if (data.decks.length > MAX_DECKS || data.words.length > MAX_WORDS) return null;
+  const decks = [], words = [];
+  for (const d of data.decks) { const x = cleanDeck(d); if (!x) return null; decks.push(x); }
+  for (const w of data.words) { const x = cleanWord(w); if (!x) return null; words.push(x); }
+  repairDuplicateWordIds(words); // 古いバックアップに含まれるID重複も直して復元する
+  const settings = _isObj(data.settings) ? cleanSettings(data.settings) : null;
+  return { decks, words, settings };
+}
+
 function importBackup(input) {
   const file = input.files && input.files[0];
   if (!file) return;
@@ -73,7 +157,8 @@ function importBackup(input) {
     try { data = JSON.parse(reader.result); }
     catch (e) { toast('JSONファイルの読み込みに失敗しました'); input.value = ''; return; }
 
-    if (!data || !Array.isArray(data.decks) || !Array.isArray(data.words)) {
+    data = sanitizeBackup(data);
+    if (!data) {
       toast('このファイルはVocaAirのバックアップ形式ではありません');
       input.value = '';
       return;
@@ -82,7 +167,7 @@ function importBackup(input) {
     const wordCount = data.words.length;
     confirm(
       `単語帳 ${deckCount} 件・単語 ${wordCount} 件を復元します`,
-      '現在この端末にあるデータはすべて上書きされます。この操作は取り消せません',
+      '現在この端末にあるデータはすべて上書きされます。この操作は取り消せません' + (window.VaSync && window.VaSync.active() ? '（同期中のため、他の端末のデータもこの内容に置き換わります）' : ''),
       () => {
         saveDecks(data.decks);
         saveWords(data.words);
@@ -345,7 +430,7 @@ function renderHome() {
     const due = dw.filter(w => (w.nextDue||0) <= now).length;
     const mastered = dw.length ? Math.round(dw.filter(w => w.state === 'review' && (w.interval||0) >= 21).length / dw.length * 100) : 0;
     const dest = getCurrentDestination(d.id);
-    return `<div class="flight-row" role="button" tabindex="0" onkeydown="if(event.target===this&&(event.key==='Enter'||event.key===' ')){event.preventDefault();openBoarding(${d.id})}" onclick="openBoarding(${d.id})">
+    return `<div class="flight-row" role="button" tabindex="0" onkeydown="if(event.target===this&&(event.key==='Enter'||event.key===' ')){event.preventDefault();openBoarding(${Number(d.id)})}" onclick="openBoarding(${Number(d.id)})">
       <div class="fr-code-col">
         <span class="fr-code">${esc(dest.code)}</span>
         <span class="fr-code-city">${esc(dest.city)}</span>
@@ -357,7 +442,7 @@ function renderHome() {
           ${due>0 ? `<span class="fr-due">復習 ${due}</span>` : ''}<span class="fr-mastered">定着 ${mastered}%</span>
         </div>
       </div>
-      <button class="fr-del" onclick="event.stopPropagation();confirmDeleteDeck(${d.id})" aria-label="この単語帳を削除">
+      <button class="fr-del" onclick="event.stopPropagation();confirmDeleteDeck(${Number(d.id)})" aria-label="この単語帳を削除">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
       </button>
       <svg class="fr-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
@@ -1010,7 +1095,7 @@ function renderImportSheet(index) {
 function populateImportDeckSelect() {
   const sel = document.getElementById('import-deck-select');
   const decks = loadDecks();
-  sel.innerHTML = decks.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
+  sel.innerHTML = decks.map(d => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join('');
   if (!decks.length) sel.innerHTML = '<option value="">（先に単語帳を作成してください）</option>';
 }
 
@@ -1021,7 +1106,7 @@ function importWords() {
   if (!valid.length) { toast('インポートできる単語がありません'); return; }
   const words = loadWords();
   valid.forEach(r => {
-    words.push({ id: Date.now()+Math.random(), deckId, word:r.word, trans:r.trans, memo:r.memo||'', ef:SRS.startEf, interval:1, reps:0, nextDue:0, state:'new', lapses:0, learningStep:0 });
+    words.push({ id: newWordId(), deckId, word:r.word, trans:r.trans, memo:r.memo||'', ef:SRS.startEf, interval:1, reps:0, nextDue:0, state:'new', lapses:0, learningStep:0 });
   });
   saveWords(words);
   toast(`${valid.length} 語をインポートしました`);
@@ -1088,7 +1173,8 @@ function showDestinationLayer(show) {
 
 function initSettings() {
   const c = document.getElementById('set-auto'); if (c) c.checked = autoAdvance();
-  Notify.render();
+  const ver = document.getElementById('app-version'); if (ver) ver.textContent = 'VocaAir v' + APP_VERSION;
+  if (window.VaSync) window.VaSync.renderCard();
   refreshSceneryInfo();
 }
 function refreshSceneryInfo(extra) {
@@ -1107,8 +1193,19 @@ async function downloadScenery() {
 }
 async function clearScenery() { await Scenery.clearOffline(); refreshSceneryInfo(); toast('保存した景色を消しました'); }
 
-// 起動時: 通知の初期化と、オフライン用の景色の自動保存（少なすぎる時だけ・通信量節約モードでは行わない）
-Notify.init();
+/* Service Worker 登録（オフライン動作用）。v1.8.0 で通知機能を廃止したため、以前の通知設定と購読を片付ける */
+async function setupServiceWorker() {
+  try { localStorage.removeItem('va_notify'); } catch (e) {}
+  if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
+  try {
+    const reg = await navigator.serviceWorker.register('sw.js');
+    await navigator.serviceWorker.ready;
+    if (reg.pushManager) { const sub = await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); }
+  } catch (e) { console.warn('SW', e); }
+}
+setupServiceWorker();
+
+// 起動時: オフライン用の景色の自動保存（少なすぎる時だけ・通信量節約モードでは行わない）
 setTimeout(() => {
   const saveData = navigator.connection && navigator.connection.saveData;
   if (navigator.onLine && !saveData && Scenery.offlineCount() < 12) Scenery.prefetchPack(12);
@@ -1118,6 +1215,18 @@ setTimeout(() => {
    RENDER ALL + INIT
    ============================================================ */
 function renderAll() { renderHome(); }
+
+/* v1.9.0: すでに端末にある単語のID重複を、起動時に修復する（修復した分だけ保存） */
+(function repairWordIdsAtBoot() {
+  try {
+    const ws = loadWords();
+    const n = repairDuplicateWordIds(ws);
+    if (!n) return;
+    LS.set('vq_words', ws);
+    try { localStorage.removeItem('vq_session'); } catch (e) { /* 途中経過が残っても支障はない */ }
+    setTimeout(() => toast('IDが重複していた単語 ' + n + ' 語を修復しました'), 800);
+  } catch (e) { /* 修復に失敗しても起動は続ける */ }
+})();
 
 renderAll();
 
@@ -1179,7 +1288,7 @@ function saveWord() {
     const w = words.find(x => String(x.id) === String(editingWordId));
     if (w) Object.assign(w, { word, trans, memo });
   } else {
-    words.push({ id: Date.now() + Math.random(), deckId: wordsDeckId, word, trans, memo, ef: SRS.startEf, interval: 1, reps: 0, nextDue: 0, state: 'new', lapses: 0, learningStep: 0 });
+    words.push({ id: newWordId(), deckId: wordsDeckId, word, trans, memo, ef: SRS.startEf, interval: 1, reps: 0, nextDue: 0, state: 'new', lapses: 0, learningStep: 0 });
   }
   saveWords(words);
   closeModal('modal-word');

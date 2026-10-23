@@ -19,7 +19,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="styles.css">
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="vendor/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -180,12 +180,7 @@
       <span class="switch"><input type="checkbox" id="set-auto" onchange="setAutoAdvance(this.checked)"><span></span></span></label>
     </div>
 
-    <div class="card"><div class="settings-label">通知</div>
-      <label class="switch-row"><span>毎日、復習の時間にお知らせする<small id="nt-status"></small></span>
-      <span class="switch"><input type="checkbox" id="nt-enable" onchange="Notify.onToggle(this.checked)"><span></span></span></label>
-      <div class="set-row"><label for="nt-time">通知する時刻</label><input type="time" id="nt-time" class="form-input" value="20:00" onchange="Notify.onTime(this.value)"></div>
-      <div style="margin-top:12px"><button class="btn sm ghost" onclick="Notify.test()">テスト通知を送る</button></div>
-    </div>
+    <div class="card" id="sync-card"></div>
 
     <div class="card"><div class="settings-label">世界の景色</div>
       <p class="set-note" id="scn-info"></p>
@@ -196,6 +191,10 @@
         <button class="btn sm ghost" onclick="clearScenery()">保存した景色を消す</button>
       </div>
       <p class="form-hint" style="margin-top:10px">※ 保存した景色は、電波のない場所でも背景に使われます（写真は Wikimedia Commons。出典は画面右上に表示）</p>
+    </div>
+
+    <div class="card"><div class="settings-label">このアプリについて</div>
+      <p class="set-note" id="app-version"></p>
     </div>
 
     <div class="card">
@@ -288,10 +287,11 @@
 <div id="toast" role="status" aria-live="polite"></div>
 
 
-<script src="config.js"></script>
 <script src="scenery-data.js"></script>
 <script src="scenery.js"></script>
-<script src="notify.js"></script>
 <script src="app.js"></script>
+<script src="sync-core.js"></script>
+<script src="sync-firebase.js"></script>
+<script src="sync.js"></script>
 </body>
 </html>
