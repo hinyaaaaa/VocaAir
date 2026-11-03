@@ -82,10 +82,14 @@
             }, fail));
           },
           stop() { unsubs.forEach((u) => { try { u(); } catch (e) { /* 解除に失敗しても続ける */ } }); unsubs = []; },
-          push(items) {
+          /** 送信する。失敗した分を配列で返す（sync-core が「送った」記録を取り消して、あとで再送する） */
+          async push(items) {
+            const failed = [];
+            const jobs = [];
             for (let i = 0; i < items.length; i += BATCH) {
+              const part = items.slice(i, i + BATCH);
               const batch = fsMod.writeBatch(db);
-              items.slice(i, i + BATCH).forEach((it) => {
+              part.forEach((it) => {
                 if (it.kind === 'settings') {
                   batch.set(fsMod.doc(db, `${base}/va_meta/settings`), { id: 'settings', json: it.json, updatedAt: it.updatedAt });
                 } else {
@@ -93,8 +97,22 @@
                   batch.set(fsMod.doc(db, `${base}/${coll}/${safeId(it.id)}`), { id: it.id, json: it.json, updatedAt: it.updatedAt, deletedAt: it.deletedAt });
                 }
               });
-              batch.commit().catch((e) => pushStatus('error:' + (e && e.code ? e.code : 'unknown')));
+              jobs.push(batch.commit().catch((e) => { failed.push(...part); pushStatus('error:' + (e && e.code ? e.code : 'unknown')); }));
             }
+            await Promise.all(jobs);
+            return failed;
+          },
+          /** クラウドの全件を、キャッシュではなくサーバーから読む（全件照合用。語数ぶんの読み取りが発生する） */
+          async fetchAll() {
+            const read = async (name, kind) => {
+              const snap = await fsMod.getDocsFromServer(fsMod.collection(db, `${base}/${name}`));
+              return snap.docs.map((d) => {
+                const x = d.data();
+                return { kind, id: String(x.id == null ? d.id : x.id), json: x.json == null ? null : x.json, updatedAt: Number(x.updatedAt) || 0, deletedAt: x.deletedAt || null };
+              });
+            };
+            const [decks, words] = await Promise.all([read('va_decks', 'deck'), read('va_words', 'word')]);
+            return { decks, words };
           },
         };
       },

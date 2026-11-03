@@ -14,12 +14,15 @@
   const ANCHORS = window.SCENERY_ANCHORS || [];
   const THUMB_W = 1920;                       // Wikimediaの標準サムネイル幅
   const API = 'https://commons.wikimedia.org/w/api.php';
-  const PHOTO_CACHE = 'va-photos-v1';
+  const PHOTO_CACHE = 'va-photos-v2';          // v1.9.1: 旧基準（風景以外が混ざった）の保存分は引き継がない
   const MAX_POOL = 80;                        // 端末に保存しておく写真の上限
-  const KEY_PICK = 'va_scn_pick';             // 地点index → 選ばれた写真
-  const KEY_POOL = 'va_scn_pool';             // オフラインで使える写真のメタ情報
+  const KEY_PICK = 'va_scn_pick_v2';           // 地点index → 選ばれた写真
+  const KEY_POOL = 'va_scn_pool_v2';           // オフラインで使える写真のメタ情報
   const KEY_BLOCK = 'va_scn_block';           // 「表示しない」にした写真
   const KEY_RECENT = 'va_scn_recent';         // 最近行った地点（重複回避）
+  // v1.9.1: 旧基準で選ばれた写真の記録と保存分を片付ける（「表示しない」の記録 va_scn_block は残す）
+  try { localStorage.removeItem('va_scn_pick'); localStorage.removeItem('va_scn_pool'); } catch (e) { /* 消せなくても支障はない */ }
+  try { if (window.caches) caches.delete('va-photos-v1'); } catch (e) { /* 同上 */ }
 
   /* ---------- 地点カタログ ---------- */
   // 区画: [距離km, 方位の数] のリング。中心1 + 8 + 12 + 16 + 24 = 61
@@ -75,6 +78,12 @@
   }
   function stripHtml(s) { return String(s || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim(); }
 
+  /* v1.9.1: 風景の判定は「許可」方式。禁止語に当たらないだけでは通さず、Commons のカテゴリ
+     （例: Landscapes of …, Mount …, Beaches of …, Views of …）に風景を示す語があり、人物・生き物・
+     室内・乗り物・地図・旗などを示すカテゴリが無い写真だけを採用する。 */
+  const LAND_OK = /\b(landscapes?|sceneries|scenery|scenic|panoramas?|panoramic|views? (?:of|from|in|over|across)|mountains?|mount|mt|peaks?|volcano(?:es)?|volcanic|hills?|ridges?|valleys?|canyons?|gorges?|cliffs?|rock formations?|deserts?|dunes?|plateaus?|steppes?|prairies?|savann?as?|tundra|glaciers?|icebergs?|fjords?|lakes?|lagoons?|rivers?|waterfalls?|falls|wetlands?|marshes|deltas?|coasts?|coastal|coastlines?|seashores?|shores?|beaches|beach|bays?|capes?|islands?|archipelagos?|reefs?|seas?|oceans?|sunsets?|sunrises?|clouds?|skies|forests?|woodlands?|jungles?|rainforests?|national parks?|nature reserves?|terraces|rice (?:fields?|terraces)|farmland|vineyards?|skylines?|cityscapes?|aerial views?|night views?|horizon|nature)\b/i;
+  const LAND_NG = /\b(portraits?|people|persons?|men|man|women|woman|girls?|boys?|child|children|crowds?|students?|tourists?|visitors?|athletes?|players?|actors?|musicians?|politicians?|selfies?|interiors?|inside|lobbies|lobby|rooms?|kitchens?|museums?|exhibitions?|exhibits?|paintings?|drawings?|illustrations?|sculptures?|statues?|monuments?|memorials?|graves?|cemeteries|flags?|coats? of arms|emblems?|logos?|maps?|diagrams?|charts?|vehicles?|automobiles?|cars?|buses|bus|trucks?|trains?|trams?|locomotives?|rolling stock|aircraft|airplanes?|aeroplanes?|helicopters?|ships?|boats?|ferries|ferry|sailing|food|dishes|dish|restaurants?|meals?|animals?|birds?|insects?|mammals?|fish|fishes|flowers?|plants?|fungi|mushrooms?|macro|close-?ups?|details?|signs?|signage|posters?|advertisements?|street art|graffiti|stadiums?|sports?|matches|festivals?|parades?|protests?|demonstrations?|ceremon(?:y|ies)|concerts?|performances?|events?|markets?|shops?|stores|store|construction|demolition|accidents?|fires?|wars?|military|battles?|weapons?|documents?|manuscripts?|books?|newspapers?|screenshots?|scans?|churches|church|cathedrals?|temples?|shrines?|mosques?|castles?|palaces?|houses?|buildings?|streets?|roads?|bridges?|towers?|stations?|airports?|harbou?rs?|ports?)\b/i;
+
   function acceptPage(p, blocked) {
     const ii = p && p.imageinfo && p.imageinfo[0];
     if (!ii) return null;
@@ -91,29 +100,66 @@
     if (!OK_LICENSE.test(lic)) return null;
     const desc = stripHtml(em.ImageDescription && em.ImageDescription.value).toLowerCase();
     if (desc && (BAD_EN.test(desc.slice(0, 160)))) return null;
+
+    // --- 風景であることの確認（カテゴリ） ---
+    const cats = categoriesOf(p, em);
+    let score = 0;
+    if (cats.length) {
+      const names = cats.filter(c => !/^(cc|gfdl|pd|self-published|files? |uploaded|media |images? |photographs? by|taken with|cameras?|nikon|canon|sony|fujifilm|olympus|panasonic|pentax|leica|exif|jpeg|supported by|retouched|uploaded with)/i.test(c));
+      if (names.some(c => LAND_NG.test(c))) return null;      // 人物・生き物・室内・建物・乗り物などのカテゴリがある写真は使わない
+      const hit = names.filter(c => LAND_OK.test(c)).length;
+      if (!hit) return null;                                  // 風景を示すカテゴリが1つも無い写真は使わない
+      score += Math.min(hit, 4);
+    } else {
+      // カテゴリを取得できなかった場合のみ、題名と説明に風景の語がある写真だけに限る（より厳しく）
+      const text = (t + ' ' + desc.slice(0, 160));
+      if (!LAND_OK.test(text) || LAND_NG.test(t)) return null;
+    }
+    if (cats.some(c => /^(featured pictures|quality images|valued images)/i.test(c))) score += 3;
     return {
       id: p.title,
       url: ii.thumburl || ii.url,
       page: ii.descriptionurl || '',
       artist: stripHtml(em.Artist && em.Artist.value).slice(0, 60),
       license: lic,
+      score,
     };
+  }
+  /** 写真のカテゴリ名（"Category:" を除いた一覧）。API の2種類の返し方（prop=categories と extmetadata.Categories）を合わせる */
+  function categoriesOf(p, em) {
+    const out = new Set();
+    (p.categories || []).forEach(c => { if (c && c.title) out.add(String(c.title).replace(/^Category:/i, '').trim()); });
+    const raw = em && em.Categories && em.Categories.value;
+    if (raw) String(raw).split('|').forEach(c => { c = c.trim(); if (c) out.add(c); });
+    return [...out];
   }
 
   async function geosearch(lat, lon, radius, blocked) {
-    const qs = new URLSearchParams({
+    const base = {
       action: 'query', format: 'json', origin: '*',
       generator: 'geosearch', ggscoord: lat.toFixed(5) + '|' + lon.toFixed(5),
-      ggsradius: String(Math.min(10000, radius)), ggsnamespace: '6', ggslimit: '50',
-      prop: 'imageinfo', iiprop: 'url|size|mime|extmetadata', iiurlwidth: String(THUMB_W),
-      iiextmetadatafilter: 'Artist|LicenseShortName|ImageDescription',
-    });
-    const res = await fetch(API + '?' + qs.toString());
-    if (!res.ok) throw new Error('commons ' + res.status);
-    const data = await res.json();
-    const pages = data && data.query && data.query.pages;
-    if (!pages) return [];
-    return Object.values(pages).map(p => acceptPage(p, blocked)).filter(Boolean);
+      ggsradius: String(Math.min(10000, radius)), ggsnamespace: '6', ggslimit: '40',
+      prop: 'imageinfo|categories', iiprop: 'url|size|mime|extmetadata', iiurlwidth: String(THUMB_W),
+      iiextmetadatafilter: 'Artist|LicenseShortName|ImageDescription|Categories',
+      cllimit: 'max', clshow: '!hidden',
+    };
+    const pages = {};
+    let cont = {};
+    for (let i = 0; i < 4; i++) {                       // カテゴリが多い時は続きを取って合わせる
+      const res = await fetch(API + '?' + new URLSearchParams({ ...base, ...cont }).toString());
+      if (!res.ok) throw new Error('commons ' + res.status);
+      const data = await res.json();
+      const part = data && data.query && data.query.pages;
+      if (part) Object.keys(part).forEach(k => {
+        const a = pages[k] || (pages[k] = { title: part[k].title });
+        if (part[k].imageinfo) a.imageinfo = part[k].imageinfo;
+        if (part[k].categories) a.categories = (a.categories || []).concat(part[k].categories);
+      });
+      if (!data.continue) break;
+      cont = data.continue;
+    }
+    return Object.values(pages).map(p => acceptPage(p, blocked)).filter(Boolean)
+      .sort((a, b) => b.score - a.score);                // カテゴリの根拠が強い順
   }
 
   /* ---------- 写真の決定 ---------- */
@@ -126,13 +172,13 @@
     const p0 = place(idx);
     const tries = [idx];
     tries.push(p0.anchor * CELLS_PER);                          // 中心
-    for (let k = 0; k < 2; k++) tries.push(p0.anchor * CELLS_PER + rand(CELLS_PER));
+    for (let k = 0; k < 4; k++) tries.push(p0.anchor * CELLS_PER + rand(CELLS_PER));
     for (const ti of tries) {
       const p = place(ti);
       let list = [];
       try { list = await geosearch(p.lat, p.lon, p.radius, blocked); } catch (e) { console.warn(e); }
       if (list.length) {
-        const photo = list[rand(list.length)];
+        const photo = Object.assign({}, list[rand(Math.max(1, Math.ceil(list.length / 2)))]); // 根拠の強い上位半分から選ぶ
         photo.city = p0.city;
         picks[idx] = photo;
         const keys = Object.keys(picks);
@@ -289,6 +335,6 @@
   window.Scenery = {
     PLACE_COUNT, place, randomPlaceIdx, markVisited, show,
     prefetchPack, clearOffline, offlineCount, maxPool: MAX_POOL,
-    _test: { acceptPage, CELLS, normTitle },
+    _test: { acceptPage, CELLS, normTitle, categoriesOf, LAND_OK, LAND_NG },
   };
 })();

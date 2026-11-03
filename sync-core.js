@@ -14,7 +14,7 @@
    ・Temper との違い: 初回の取り込み（単語帳・単語・設定の3つ）が終わるまで送信しない
      （先に手元の初期値を送って、クラウドの内容を上書きしてしまうのを防ぐ）
 
-   このファイルは <script> で読み込む通常のスクリプト。Node のテストからは require もできる。
+   v1.9.1: 送信の成否を見るようにした。以前は「送った」と先に記録していたため、1回でも書き込みが失敗すると\n   その語は二度と送られず、クラウドに一部の語だけが残っていた。今は失敗した分の記録を取り消し、間隔を空けて再送する。\n   あわせて「全件照合」（クラウドと端末を突き合わせて不足を双方向に補う）を追加。\n\n   このファイルは <script> で読み込む通常のスクリプト。Node のテストからは require もできる。
    ============================================================ */
 (function (root) {
   'use strict';
@@ -62,6 +62,9 @@
     let timer = null;
     let started = false;
     let ready = false; // 初回の取り込みが終わるまで送信しない
+    let failures = 0;  // 連続で送信に失敗した回数（再送の間隔を空けるのに使う）
+    let lastPush = Promise.resolve({ sent: 0, failed: 0 });
+    let pendingFailed = 0; // 直近の送信で失敗して、まだ再送できていない件数
 
     const save = () => { try { o.metaStore.set(meta); } catch (e) { /* 保存できなくても動く */ } };
 
@@ -104,8 +107,37 @@
         meta.settings = { h: sh, u: t };
         items.push({ kind: 'settings', id: 'settings', json: stableStringify(state.settings), updatedAt: t });
       }
-      if (items.length) { save(); o.backend.push(items); }
+      if (items.length) { save(); lastPush = lastPush.then(() => sendItems(items)); }
       return items;
+    }
+
+    /** 送信して、失敗した分は「送った」記録を取り消す（次の flush でもう一度送られる） */
+    async function sendItems(items) {
+      let failed = [];
+      try {
+        const r = await o.backend.push(items);
+        if (Array.isArray(r)) failed = r;
+      } catch (e) { failed = items; }
+      if (failed.length) {
+        rollback(failed);
+        failures++;
+        pendingFailed = failed.length;
+        if (started) schedule(Math.min(60000, 3000 * Math.pow(2, failures - 1)));
+      } else {
+        const recovered = failures > 0;
+        failures = 0; pendingFailed = 0;
+        if (recovered && o.onStatus) o.onStatus('synced'); // 失敗の表示を解く
+      }
+      return { sent: items.length - failed.length, failed: failed.length };
+    }
+    function rollback(failed) {
+      failed.forEach((it) => {
+        if (it.kind === 'settings') { meta.settings = { h: '?', u: 0 }; return; }
+        const mm = meta[it.kind === 'deck' ? 'decks' : 'words'];
+        // h:'?' は「どの内容とも一致しない」印。手元の語は未送信の変更として扱われ（届いた内容で上書きされない）、次の flush で送り直される
+        mm[it.id] = { h: '?', u: 0 };
+      });
+      save();
     }
 
     const remoteWins = (m, doc, remoteHash) => !m || doc.updatedAt > m.u || (doc.updatedAt === m.u && remoteHash > m.h);
@@ -217,12 +249,58 @@
       timer = setTimeout(flush, ms);
     }
 
+    /** クラウドの全件を読み、端末と突き合わせる。クラウドにあって端末に無い分は取り込み、端末にあってクラウドに無い分は送り直す */
+    async function reconcile() {
+      if (!started || !ready) throw new Error('not-ready');
+      await lastPush;
+      const cloud = await o.backend.fetchAll();
+      const state = o.getState();
+      const b = newBatch(state);
+      let pulled = 0;
+      // 端末に無いのにクラウドには生きた文書がある → 記録上は「同期済み」でも取り込む（端末側の欠けを補う）。
+      // ただし、端末で削除して墓標をまだ送っていない語は取り込まない
+      [['decks', cloud.decks], ['words', cloud.words]].forEach(([c, list]) => {
+        list.forEach((d) => {
+          if (d.deletedAt || b.idx[c].has(String(d.id))) return;
+          const m = meta[c][String(d.id)];
+          if (m && m.d) return;
+          delete meta[c][String(d.id)];
+        });
+      });
+      cloud.decks.concat(cloud.words).forEach((d) => { if (applyDoc(d, b)) pulled++; });
+      commit(b);
+      if (pulled) o.onRemoteApplied(state, b.touched);
+      const live = { decks: new Set(), words: new Set() };
+      cloud.decks.forEach((d) => { if (!d.deletedAt) live.decks.add(String(d.id)); });
+      cloud.words.forEach((d) => { if (!d.deletedAt) live.words.add(String(d.id)); });
+      let resent = 0;
+      COLLS.forEach((c) => {
+        state[c].forEach((x) => {
+          const id = String(x && x.id);
+          if (!ID_RE.test(id) || live[c].has(id)) return;
+          meta[c][id] = { h: '?', u: 0 }; // クラウドに無い → 送ったことにせず、必ず送り直す
+          resent++;
+        });
+      });
+      save();
+      flush();
+      const r = await lastPush;
+      return {
+        local: { decks: state.decks.length, words: state.words.length },
+        cloud: { decks: live.decks.size, words: live.words.size },
+        pulled, resent, failed: r.failed,
+      };
+    }
+
     return {
       start() { started = true; o.backend.start(handlers); },
       stop() { started = false; ready = false; clearTimeout(timer); if (o.backend.stop) o.backend.stop(); },
       /** 保存のたびに呼ぶ（送信はまとめて少し遅らせる） */
       notifyLocalChange() { schedule(); },
       flush,
+      reconcile,
+      idle: () => lastPush,
+      get pendingFailed() { return pendingFailed; },
       applyRemote,
       get ready() { return ready; },
       get meta() { return meta; },

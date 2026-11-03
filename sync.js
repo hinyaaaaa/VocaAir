@@ -198,10 +198,40 @@
       location.reload();
     }, '🔌');
   }
-  function syncNow() {
+  let busy = false;
+  function setVerify(text) {
+    const el = document.getElementById('sync-verify');
+    if (el) el.textContent = text || '';
+  }
+  async function syncNow() {
     if (!engine || !engine.ready) { toast('同期の準備中です。少し待ってからもう一度お試しください'); return; }
-    const n = engine.flush().length;
-    toast(n ? n + ' 件を送信しました' : '送るものはありません（最新です）');
+    if (busy) return;
+    busy = true;
+    try {
+      const n = engine.flush().length;
+      const r = await engine.idle();
+      if (r.failed || engine.pendingFailed) toast('送れなかった分があります（' + engine.pendingFailed + ' 件）。自動でやり直します');
+      else toast(n ? n + ' 件を送信しました' : '送るものはありません（最新です）');
+    } finally { busy = false; }
+  }
+  /** クラウドの全件を読み、端末と突き合わせて、不足を双方向に補う */
+  async function verify() {
+    if (!engine || !engine.ready) { toast('同期の準備中です。少し待ってからもう一度お試しください'); return; }
+    if (busy) return;
+    busy = true;
+    setVerify('照合中…（クラウドの全件を読み込みます）');
+    try {
+      const r = await engine.reconcile();
+      const lines = ['端末 ' + r.local.words + ' 語・' + r.local.decks + ' 冊 ／ クラウド ' + (r.cloud.words + r.resent - r.failed) + ' 語・' + r.cloud.decks + ' 冊'];
+      if (r.pulled) lines.push('クラウドから ' + r.pulled + ' 件を取り込みました');
+      if (r.resent) lines.push('クラウドに無かった ' + r.resent + ' 件を送りました' + (r.failed ? '（うち ' + r.failed + ' 件は失敗。自動でやり直します）' : ''));
+      if (!r.pulled && !r.resent) lines.push('一致しています');
+      setVerify(lines.join('\n'));
+      toast(r.failed ? '一部送れませんでした。しばらくしてもう一度照合してください' : '照合しました');
+    } catch (e) {
+      console.error('[VocaAir] verify failed', e);
+      setVerify('照合できませんでした（' + (e && e.code ? e.code : e && e.message === 'not-ready' ? '準備中' : '通信エラー') + '）');
+    } finally { busy = false; }
   }
 
   /* ---------- 設定画面のカード ---------- */
@@ -224,7 +254,9 @@
     }
     if (user) {
       el.innerHTML = head
+        + '<p class="set-note" id="sync-verify" style="white-space:pre-line"></p>'
         + '<div class="btn-row"><button class="btn sm primary" onclick="VaSync.syncNow()">いますぐ同期</button>'
+        + '<button class="btn sm ghost" onclick="VaSync.verify()">全件を照合</button>'
         + '<button class="btn sm ghost" onclick="VaSync.signOut()">ログアウト</button>'
         + '<button class="btn sm danger" onclick="VaSync.clearConfig()">同期をやめる</button></div>';
       return;
@@ -242,7 +274,7 @@
   window.VaSync = {
     notifyLocalChange() { if (engine) engine.notifyLocalChange(); },
     active() { return !!engine; },
-    renderCard, saveConfig, useTemperConfig, auth, signOut, clearConfig, syncNow,
+    renderCard, saveConfig, useTemperConfig, auth, signOut, clearConfig, syncNow, verify,
     parseFirebaseConfig, // テスト用
   };
 

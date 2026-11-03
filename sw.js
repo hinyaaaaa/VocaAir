@@ -1,6 +1,6 @@
 /* VocaAir Service Worker — オフライン動作 */
-const VERSION = 'va-shell-v1.9.0';
-const KEEP = [VERSION, 'va-photos-v1', 'va-runtime-v1'];
+const VERSION = 'va-shell-v1.9.1';
+const KEEP = [VERSION, 'va-photos-v2', 'va-runtime-v1'];
 const RUNTIME = 'va-runtime-v1';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'scenery.js', 'scenery-data.js', 'sync-core.js', 'sync-firebase.js', 'sync.js', 'vendor/xlsx.full.min.js',
   'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];

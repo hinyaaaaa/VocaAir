@@ -43,7 +43,7 @@ const loadWords = () => LS.get('vq_words') || [];
 const saveWords = w => { LS.set('vq_words', w); syncPing(); };
 const loadSettings = () => LS.get('vq_settings') || { dim: 0.45 };
 const saveSettings = s => { LS.set('vq_settings', s); syncPing(); };
-const APP_VERSION = '1.9.0';
+const APP_VERSION = '1.9.1';
 const normalizeKey = s => String(s || '').trim().normalize('NFKC').toLowerCase();
 
 /* ============================================================
