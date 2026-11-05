@@ -43,7 +43,7 @@ const loadWords = () => LS.get('vq_words') || [];
 const saveWords = w => { LS.set('vq_words', w); syncPing(); };
 const loadSettings = () => LS.get('vq_settings') || { dim: 0.45 };
 const saveSettings = s => { LS.set('vq_settings', s); syncPing(); };
-const APP_VERSION = '1.9.1';
+const APP_VERSION = '1.10.0';
 const normalizeKey = s => String(s || '').trim().normalize('NFKC').toLowerCase();
 
 /* ============================================================
@@ -178,7 +178,7 @@ function importBackup(input) {
         renderAll();
         showScreen('home');
       },
-      '📥'
+      'restore'
     );
   };
   reader.readAsText(file);
@@ -318,6 +318,25 @@ const daysUntil = ts => Math.max(0, Math.ceil((ts - Date.now()) / 86400000));
 /* ============================================================
    UTILS
    ============================================================ */
+/* 画面で使う線画アイコン（絵文字は使わない）と、場所の座標表記 */
+const ICON = {
+  pin: (n = 14) => `<svg width="${n}" height="${n}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0119 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>`,
+  plus: (n = 18) => `<svg width="${n}" height="${n}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+  chev: (n = 18) => `<svg width="${n}" height="${n}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>`,
+  trash: (n = 18) => `<svg width="${n}" height="${n}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>`,
+  edit: (n = 18) => `<svg width="${n}" height="${n}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>`,
+  close: (n = 18) => `<svg width="${n}" height="${n}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>`,
+  compass: (n = 40) => `<svg width="${n}" height="${n}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg>`,
+  note: (n = 40) => `<svg width="${n}" height="${n}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>`,
+  plug: (n = 32) => `<svg width="${n}" height="${n}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3v5M15 3v5"/><path d="M6 8h12v3a6 6 0 01-12 0z"/><path d="M12 17v4"/></svg>`,
+  restore: (n = 32) => `<svg width="${n}" height="${n}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+};
+/** 北緯35.7°・東経139.8° のような短い座標表記（地点データの緯度経度から作る） */
+function coordLabel(p) {
+  if (!p || typeof p.lat !== 'number' || typeof p.lon !== 'number') return '';
+  return `${Math.abs(p.lat).toFixed(1)}°${p.lat >= 0 ? 'N' : 'S'} ${Math.abs(p.lon).toFixed(1)}°${p.lon >= 0 ? 'E' : 'W'}`;
+}
+
 function esc(s) {
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
@@ -336,8 +355,8 @@ function toast(msg) {
 /* ============================================================
    CONFIRM MODAL
    ============================================================ */
-function confirm(msg, sub, onOk, icon='🗑️') {
-  document.getElementById('confirm-icon').textContent = icon;
+function confirm(msg, sub, onOk, icon = 'trash') {
+  document.getElementById('confirm-icon').innerHTML = (ICON[icon] || ICON.trash)(32);
   document.getElementById('confirm-msg').textContent = msg;
   document.getElementById('confirm-sub').textContent = sub || '';
   document.getElementById('confirm-ok-btn').onclick = () => { closeModal('modal-confirm'); onOk(); };
@@ -361,7 +380,7 @@ function showScreen(id) {
   if (id === 'settings') initSettings();
   if (id === 'words') renderWords();
   document.body.classList.toggle('focus', id === 'quiz');
-  showDestinationLayer(id === 'board' || id === 'quiz' || id === 'result');
+  ensureAmbientScenery(id);
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
@@ -401,7 +420,7 @@ function createDeck() {
 }
 
 /* ============================================================
-   HOME — Today summary + flight-list of decks
+   HOME — 今日の復習と、単語帳の一覧（それぞれ「いまいる場所」を持つ）
    ============================================================ */
 function renderHome() {
   const decks = loadDecks();
@@ -409,20 +428,17 @@ function renderHome() {
   const now = Date.now();
 
   const totalDue = words.filter(w => (w.nextDue||0) <= now).length;
-  const heroMsg = document.getElementById('home-hero-msg');
-  if (heroMsg) {
-    heroMsg.textContent = !decks.length ? '最初の単語帳を作って、学習の旅をはじめましょう'
-      : totalDue > 0 ? `今日は ${totalDue} 語、復習の予定があります`
-      : '今日の復習はすべて終わっています';
+  const today = document.getElementById('home-today');
+  if (today) {
+    today.innerHTML = !decks.length ? '<p class="today-msg">最初の単語帳を作って、学習をはじめましょう。</p>'
+      : totalDue > 0 ? `<span class="today-num">${totalDue.toLocaleString()}</span><span class="today-unit">語</span><p class="today-msg">今日の復習があります（${decks.length}冊の合計）</p>`
+      : '<p class="today-msg">今日の復習は、すべて終わっています。</p>';
   }
 
-  const el = document.getElementById('home-flight-list');
+  const el = document.getElementById('home-deck-list');
+  const addRow = `<button class="deck-add" onclick="openNewDeckModal()">${ICON.plus(18)}新しい単語帳</button>`;
   if (!decks.length) {
-    el.innerHTML = `<div class="empty">
-      <div class="empty-icon">🧳</div>
-      <p>まだ単語帳がありません</p>
-      <small>右下の「＋」から最初の単語帳を作れます</small>
-    </div>`;
+    el.innerHTML = `<div class="empty">${ICON.compass(40)}<p>まだ単語帳がありません</p><small>単語帳を作ると、世界のどこかの風景とともに学習できます。</small></div>${addRow}`;
     return;
   }
   el.innerHTML = decks.map(d => {
@@ -430,24 +446,20 @@ function renderHome() {
     const due = dw.filter(w => (w.nextDue||0) <= now).length;
     const mastered = dw.length ? Math.round(dw.filter(w => w.state === 'review' && (w.interval||0) >= 21).length / dw.length * 100) : 0;
     const dest = getCurrentDestination(d.id);
-    return `<div class="flight-row" role="button" tabindex="0" onkeydown="if(event.target===this&&(event.key==='Enter'||event.key===' ')){event.preventDefault();openBoarding(${Number(d.id)})}" onclick="openBoarding(${Number(d.id)})">
-      <div class="fr-code-col">
-        <span class="fr-code">${esc(dest.code)}</span>
-        <span class="fr-code-city">${esc(dest.city)}</span>
-      </div>
-      <div class="fr-main">
-        <div class="fr-name">${esc(d.name)}</div>
-        <div class="fr-meta">
+    const id = Number(d.id);
+    return `<div class="deck-row" role="button" tabindex="0" onkeydown="if(event.target===this&&(event.key==='Enter'||event.key===' ')){event.preventDefault();openBoarding(${id})}" onclick="openBoarding(${id})">
+      <div class="deck-main">
+        <div class="deck-place">${ICON.pin(12)}<span>${esc(dest.city)}</span></div>
+        <div class="deck-name">${esc(d.name)}</div>
+        <div class="deck-meta">
           <span>${dw.length} 語</span>
-          ${due>0 ? `<span class="fr-due">復習 ${due}</span>` : ''}<span class="fr-mastered">定着 ${mastered}%</span>
+          ${due>0 ? `<span class="due">復習 ${due}</span>` : ''}<span class="mastered">定着 ${mastered}%</span>
         </div>
       </div>
-      <button class="fr-del" onclick="event.stopPropagation();confirmDeleteDeck(${Number(d.id)})" aria-label="この単語帳を削除">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
-      </button>
-      <svg class="fr-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      <button class="icon-btn del" onclick="event.stopPropagation();confirmDeleteDeck(${id})" aria-label="「${esc(d.name)}」を削除">${ICON.trash(18)}</button>
+      <span class="deck-chev">${ICON.chev(18)}</span>
     </div>`;
-  }).join('');
+  }).join('') + addRow;
 }
 
 function hashStr(s) {
@@ -470,8 +482,8 @@ function getRandomCount(deckId) {
 const deckDirections = {};
 function setDirection(deckId, direction, btn) {
   deckDirections[deckId] = direction;
-  document.querySelectorAll(`#dir-${deckId} .mode-tab`).forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  document.querySelectorAll(`#dir-${deckId} .seg-item`).forEach(b => { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
+  btn.classList.add('active'); btn.setAttribute('aria-pressed', 'true');
 }
 function getDirection(deckId) { return deckDirections[deckId] || 'm2w'; }
 
@@ -479,13 +491,13 @@ function getDirection(deckId) { return deckDirections[deckId] || 'm2w'; }
 const deckFormats = {};
 function setFormat(deckId, format, btn) {
   deckFormats[deckId] = format;
-  document.querySelectorAll(`#fmt-${deckId} .mode-tab`).forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  document.querySelectorAll(`#fmt-${deckId} .seg-item`).forEach(b => { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
+  btn.classList.add('active'); btn.setAttribute('aria-pressed', 'true');
 }
 function getFormat(deckId) { return deckFormats[deckId] || 'choice'; }
 
 /* ============================================================
-   搭乗手続き画面（学習モードの設定）
+   単語帳の詳細（学習の設定）
    ============================================================ */
 let _boardingDeckId = null;
 
@@ -523,57 +535,49 @@ function renderBoardScreen(deckId) {
 
   const counts = [10, 20, 30, 50];
   const countPills = counts.map(c =>
-    `<button class="count-pill ${count===c?'active':''}" onclick="setBoardCount(${deckId},${c})">${c}問</button>`
-  ).join('') + `<button class="count-pill ${count===0?'active':''}" onclick="setBoardCount(${deckId},0)">全部（${total}問）</button>`;
+    `<button class="count-pill ${count===c?'active':''}" aria-pressed="${count===c}" onclick="setBoardCount(${deckId},${c})">${c}問</button>`
+  ).join('') + `<button class="count-pill ${count===0?'active':''}" aria-pressed="${count===0}" onclick="setBoardCount(${deckId},0)">すべて（${total}問）</button>`;
 
   const dest = getCurrentDestination(deckId);
-  const next = getNextDestination(deckId);
+  const pr = v => `aria-pressed="${v ? 'true' : 'false'}"`;
 
   pass.innerHTML = `
-    <div class="airmail-stripe"></div>
-    <div class="board-body">
-      <div class="dc-eyebrow-row">
-        <span class="dest-badge"><span class="db-dot"></span>現在地 <span class="db-city">${esc(dest.city)}</span></span>
-        <span class="dc-route">${dest.code} <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg> ${next.code}</span>
-      </div>
-      <div class="board-deck-name">${esc(deck.name)}</div>
-      <div class="board-stats">
-        <div class="board-stat"><span class="bs-num">${total}</span><span class="bs-lbl">単語数</span></div>
-        <div class="board-stat"><span class="bs-num">${due}</span><span class="bs-lbl">復習待ち</span></div>
-      </div>
-
-      <div class="board-section">
-        <div class="board-section-label">出題範囲</div>
-        <div class="mode-tabs">
-          <button class="mode-tab ${mode==='due'?'active':''}" onclick="setBoardMode(${deckId},'due')">復習のみ<span class="mt-sub">${due}語</span></button>
-          <button class="mode-tab ${mode==='random'?'active':''}" onclick="setBoardMode(${deckId},'random')">問題数を指定<span class="mt-sub">ランダム出題</span></button>
-        </div>
-        ${mode === 'random' ? `<div class="count-row">${countPills}</div>` : ''}
-      </div>
-
-      <div class="board-section">
-        <div class="board-section-label">出題の向き</div>
-        <div class="mode-tabs" id="dir-${deckId}">
-          <button class="mode-tab ${direction==='m2w'?'active':''}" onclick="setDirection(${deckId},'m2w',this)">単語 → 意味</button>
-          <button class="mode-tab ${direction==='w2m'?'active':''}" onclick="setDirection(${deckId},'w2m',this)">意味 → 単語</button>
-        </div>
-      </div>
-
-      <div class="board-section" style="margin-bottom:26px">
-        <div class="board-section-label">答え方</div>
-        <div class="mode-tabs" id="fmt-${deckId}">
-          <button class="mode-tab ${format==='choice'?'active':''}" onclick="setFormat(${deckId},'choice',this)">4択</button>
-          <button class="mode-tab ${format==='input'?'active':''}" onclick="setFormat(${deckId},'input',this)">入力式</button>
-        </div>
-      </div>
-
-      <button class="btn board-manage" onclick="openWords(${deckId})">単語を管理（一覧・追加・編集）</button>
-      <button class="btn primary board-start-btn" onclick="startQuizDeck(${deckId})">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-        学習をはじめる
-      </button>
-      ${(mode === 'due' && due === 0) ? '<p class="board-warn">今日の復習はありません。「問題数を指定」でも学習できます</p>' : ''}
+    <h2 class="panel-name" style="margin-top:0">${esc(deck.name)}</h2>
+    <div class="stats">
+      <div class="stat"><span class="stat-num">${total}</span><span class="stat-lbl">単語数</span></div>
+      <div class="stat"><span class="stat-num">${due}</span><span class="stat-lbl">復習待ち</span></div>
     </div>
+
+    <div class="opt">
+      <div class="opt-label">出題する語</div>
+      <div class="seg" role="group" aria-label="出題する語">
+        <button class="seg-item ${mode==='due'?'active':''}" ${pr(mode==='due')} onclick="setBoardMode(${deckId},'due')">復習する語<span class="seg-sub">${due}語</span></button>
+        <button class="seg-item ${mode==='random'?'active':''}" ${pr(mode==='random')} onclick="setBoardMode(${deckId},'random')">数を決めて出す<span class="seg-sub">ランダム</span></button>
+      </div>
+      ${mode === 'random' ? `<div class="count-row">${countPills}</div>` : ''}
+    </div>
+
+    <div class="opt">
+      <div class="opt-label">出題の向き</div>
+      <div class="seg" id="dir-${deckId}" role="group" aria-label="出題の向き">
+        <button class="seg-item ${direction==='m2w'?'active':''}" ${pr(direction==='m2w')} onclick="setDirection(${deckId},'m2w',this)">単語 → 意味</button>
+        <button class="seg-item ${direction==='w2m'?'active':''}" ${pr(direction==='w2m')} onclick="setDirection(${deckId},'w2m',this)">意味 → 単語</button>
+      </div>
+    </div>
+
+    <div class="opt">
+      <div class="opt-label">答え方</div>
+      <div class="seg" id="fmt-${deckId}" role="group" aria-label="答え方">
+        <button class="seg-item ${format==='choice'?'active':''}" ${pr(format==='choice')} onclick="setFormat(${deckId},'choice',this)">4択</button>
+        <button class="seg-item ${format==='input'?'active':''}" ${pr(format==='input')} onclick="setFormat(${deckId},'input',this)">入力</button>
+      </div>
+    </div>
+
+    <div class="panel-actions">
+      <button class="btn primary lg block" onclick="startQuizDeck(${deckId})">学習をはじめる</button>
+      <button class="btn ghost block" onclick="openWords(${deckId})">単語を管理する</button>
+    </div>
+    ${(mode === 'due' && due === 0) ? '<p class="panel-note">今日の復習はありません。「数を決めて出す」なら学習できます。</p>' : ''}
   `;
 }
 
@@ -745,7 +749,7 @@ function loadCard() {
   const w = qWords[qIdx];
   const promptField = qDirection === 'w2m' ? 'word' : 'trans';
   const answerField = qDirection === 'w2m' ? 'trans' : 'word';
-  document.getElementById('q-prompt-label').textContent = qDirection === 'w2m' ? '単　語' : '意　味';
+  document.getElementById('q-prompt-label').textContent = qDirection === 'w2m' ? '単語' : '意味';
   document.getElementById('q-prompt').textContent = w[promptField] || '';
   qCorrectAnswer = String(w[answerField] || '').trim();
   qAnswered = false;
@@ -953,7 +957,7 @@ function applyGrade(w, grade) {
   if (i >= 0) Object.assign(words[i], w);
   saveWords(words);
   if (res && res.leech) {
-    toast(`「${w.word}」は${SRS.leechThreshold}回以上間違えています。意味や例文を見直してみましょう 🐛`);
+    toast(`「${w.word}」は${SRS.leechThreshold}回以上間違えています。意味や例文を見直してみましょう`);
   }
   if (res && res.requeue) {
     const pos = Math.min(qWords.length, qIdx + 1 + res.requeueOffset);
@@ -976,8 +980,8 @@ function updateProgress() {
   const pct = qWords.length ? Math.round(qIdx / qWords.length * 100) : 0;
   document.getElementById('q-prog').style.width = pct + '%';
   document.getElementById('q-prog-label').textContent = qIdx + ' / ' + qWords.length + '問';
-  const plane = document.getElementById('q-prog-plane');
-  if (plane) plane.style.left = pct + '%';
+  const pin = document.getElementById('q-prog-pin');
+  if (pin) pin.style.left = pct + '%';
 }
 
 function leaveQuiz() {
@@ -994,7 +998,7 @@ function showResult() {
   showScreen('result');
   const pct = qWords.length ? Math.round(qOk / qWords.length * 100) : 0;
   document.getElementById('res-pct').textContent = pct + '%';
-  document.getElementById('res-msg').textContent = pct >= 80 ? 'よくできました！' : 'もう一度復習しましょう';
+  document.getElementById('res-msg').textContent = pct >= 80 ? 'よくできました。' : 'もう一度、復習しましょう。';
   document.getElementById('res-ok').textContent = qOk;
   document.getElementById('res-ng').textContent = qNg;
   const avg = qWords.length ? Math.round(qWords.reduce((s,w) => s+(w.interval||1), 0) / qWords.length) : 1;
@@ -1083,10 +1087,10 @@ function renderImportSheet(index) {
     ok ? valid++ : invalid++;
     importData.push({ word, trans, memo, ok });
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${esc(word)}</td><td>${esc(trans)}</td><td style="color:var(--ink-faint)">${esc(memo)}</td>
+    tr.innerHTML = `<td>${esc(word)}</td><td>${esc(trans)}</td><td class="memo">${esc(memo)}</td>
       <td style="text-align:center">${ok
-        ? '<span style="color:var(--moss)">✓</span>'
-        : '<span style="color:var(--vermilion)" title="単語・意味が必要">✕</span>'}</td>`;
+        ? '<span class="ok">✓</span>'
+        : '<span class="bad" title="単語・意味が必要">✕</span>'}</td>`;
     tbody.appendChild(tr);
   });
   document.getElementById('preview-count').textContent = `${sheetName} / ${valid} 件有効 ／ ${invalid} 件スキップ`;
@@ -1130,7 +1134,7 @@ function clearImport() {
 }
 
 /* ============================================================
-   DESTINATIONS — 世界の景色をめぐる「フライト」
+   DESTINATIONS — 世界各地の風景をめぐる旅
    地点の定義・写真の取得・オフライン保存は scenery.js が担当する。
    ここでは「単語帳ごとに今いる場所(current)と次の場所(next)」だけを管理する。
    学習を *はじめる* たびに next へ移動し、新しい next をランダムに決める。
@@ -1162,8 +1166,49 @@ function advanceDeckLap(deckId) {
   LS.set(DEST_PROGRESS_KEY, p);
   Scenery.markVisited(newCurrent);
 }
+/* 背景の風景と、左上の場所表示。どの画面でも、いまの単語帳の場所の風景を出す。
+   場所が変わらない間は、写真を読み込み直さない。 */
+const LAST_DECK_KEY = 'va_last_deck';
+const AMBIENT_KEY = 'va_ambient_idx';
+let shownPlaceIdx = -1;
+
+function setPlaceCaption(p) {
+  const el = document.getElementById('place-caption');
+  if (!el) return;
+  if (!p) { el.classList.remove('show'); el.innerHTML = ''; return; }
+  el.innerHTML = `${ICON.pin(14)}<span class="pc-city">${esc(p.city)}</span><span class="pc-coord">${esc(coordLabel(p))}</span>`;
+  el.classList.add('show');
+}
+function showPlace(p) {
+  if (!p || p.idx === shownPlaceIdx) return;
+  shownPlaceIdx = p.idx;
+  setPlaceCaption(p);
+  return Scenery.show(p.idx);
+}
 function applyDestinationBackground(deckId) {
-  return Scenery.show(getCurrentDestination(deckId).idx);
+  try { localStorage.setItem(LAST_DECK_KEY, String(deckId)); } catch (e) { /* 覚えられなくても続ける */ }
+  return showPlace(getCurrentDestination(deckId));
+}
+/** 一覧・設定など、単語帳を選んでいない画面で背景にする場所。最後に開いた単語帳、無ければ先頭の単語帳、単語帳が無い間は保存した場所 */
+function ambientPlace() {
+  const decks = loadDecks();
+  let id = NaN;
+  try { id = Number(localStorage.getItem(LAST_DECK_KEY)); } catch (e) { /* 既定に従う */ }
+  const d = decks.find(x => x.id === id) || decks[0];
+  if (d) return getCurrentDestination(d.id);
+  let i = NaN;
+  try { i = parseInt(localStorage.getItem(AMBIENT_KEY), 10); } catch (e) { /* 既定に従う */ }
+  if (!(i >= 0 && i < Scenery.PLACE_COUNT)) {
+    i = Scenery.randomPlaceIdx();
+    try { localStorage.setItem(AMBIENT_KEY, String(i)); } catch (e) { /* 次回また選ぶ */ }
+  }
+  return Scenery.place(i);
+}
+function ensureAmbientScenery(screenId) {
+  showDestinationLayer(true);
+  // 詳細・出題・結果は、単語帳ごとの場所を openBoarding / 学習開始で指定済み
+  if (screenId === 'board' || screenId === 'quiz' || screenId === 'result') return;
+  showPlace(ambientPlace());
 }
 function showDestinationLayer(show) {
   document.getElementById('dest-bg').classList.toggle('show', show);
@@ -1229,6 +1274,7 @@ function renderAll() { renderHome(); }
 })();
 
 renderAll();
+ensureAmbientScenery('home');
 
 
 /* ============================================================
@@ -1264,9 +1310,9 @@ function renderWords() {
     return `<div class="word-row"><div class="wr-main"><div class="wr-word">${esc(w.word)}</div>
       <div class="wr-trans">${esc(w.trans)}</div>
       <div class="wr-meta">${due}${w.memo ? ' ・ ' + esc(w.memo) : ''}</div></div>
-      <button class="icon-btn" data-id="${esc(w.id)}" aria-label="編集" onclick="openWordModal(this.dataset.id)">✎</button>
-      <button class="icon-btn del" data-id="${esc(w.id)}" aria-label="削除" onclick="deleteWord(this.dataset.id)">✕</button></div>`;
-  }).join('') : `<div class="empty"><div class="empty-icon">📝</div>${all.length ? '見つかりませんでした' : 'まだ単語がありません<br><small>「＋ 追加」またはExcelで取り込めます</small>'}</div>`;
+      <button class="icon-btn" data-id="${esc(w.id)}" aria-label="編集" onclick="openWordModal(this.dataset.id)">${ICON.edit(18)}</button>
+      <button class="icon-btn del" data-id="${esc(w.id)}" aria-label="削除" onclick="deleteWord(this.dataset.id)">${ICON.close(18)}</button></div>`;
+  }).join('') : `<div class="empty">${ICON.note(40)}<p>${all.length ? '見つかりませんでした' : 'まだ単語がありません'}</p>${all.length ? '' : '<small>「追加」ボタンか、Excelからの取り込みで増やせます。</small>'}</div>`;
 }
 function openWordModal(id) {
   const w = id != null ? loadWords().find(x => String(x.id) === String(id)) : null;

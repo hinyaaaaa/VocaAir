@@ -281,7 +281,7 @@
     const who = photo.artist ? photo.artist : 'Wikimedia Commons';
     const a = document.createElement('a');
     a.href = photo.page || '#'; a.target = '_blank'; a.rel = 'noopener';
-    a.textContent = '📷 ' + who + ' / ' + (photo.license || 'CC');
+    a.textContent = '写真：' + who + ' / ' + (photo.license || 'CC');
     const b = document.createElement('button');
     b.type = 'button'; b.textContent = 'この写真は表示しない'; b.onclick = blockCurrent;
     el.innerHTML = ''; el.appendChild(a); el.appendChild(b); el.classList.add('has');

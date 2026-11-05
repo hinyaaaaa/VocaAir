@@ -196,7 +196,7 @@
         Object.keys(localStorage).filter((k) => k.startsWith(META_PREFIX)).forEach((k) => localStorage.removeItem(k));
       } catch (e) { /* 消せなくても再読込で判断される */ }
       location.reload();
-    }, '🔌');
+    }, 'plug');
   }
   let busy = false;
   function setVerify(text) {
@@ -239,13 +239,13 @@
   function renderCard() {
     const el = document.getElementById('sync-card');
     if (!el) return;
-    const head = '<div class="settings-label">複数端末の同期</div>'
+    const head = '<div class="card-title">複数端末の同期</div>'
       + '<p class="set-note" id="sync-status">' + esc(statusLabel()) + '</p>';
     const cfg = loadConfig();
     if (!cfg) {
       const t = readConfig(TEMPER_CONFIG_KEY);
       el.innerHTML = head
-        + '<textarea id="sync-config" class="form-input" rows="4" placeholder="Firebaseの構成（const firebaseConfig = {…}）を貼り付け" style="margin-top:10px"></textarea>'
+        + '<textarea id="sync-config" class="form-input" rows="4" placeholder="Firebaseの構成（const firebaseConfig = {…}）を貼り付け" style="margin-top:var(--s3)"></textarea>'
         + '<div class="btn-row"><button class="btn sm primary" onclick="VaSync.saveConfig()">同期を設定する</button>'
         + (t ? '<button class="btn sm ghost" onclick="VaSync.useTemperConfig()">Temperと同じ設定を使う</button>' : '')
         + '</div>'
@@ -254,17 +254,17 @@
     }
     if (user) {
       el.innerHTML = head
-        + '<p class="set-note" id="sync-verify" style="white-space:pre-line"></p>'
+        + '<p class="set-note pre" id="sync-verify"></p>'
         + '<div class="btn-row"><button class="btn sm primary" onclick="VaSync.syncNow()">いますぐ同期</button>'
-        + '<button class="btn sm ghost" onclick="VaSync.verify()">全件を照合</button>'
-        + '<button class="btn sm ghost" onclick="VaSync.signOut()">ログアウト</button>'
+        + '<button class="btn sm ghost" onclick="VaSync.verify()">全件を照合</button></div>'
+        + '<div class="btn-row quiet"><button class="btn sm ghost" onclick="VaSync.signOut()">ログアウト</button>'
         + '<button class="btn sm danger" onclick="VaSync.clearConfig()">同期をやめる</button></div>';
       return;
     }
     const email = lsGet(EMAIL_KEY) || lsGet(TEMPER_EMAIL_KEY) || '';
     el.innerHTML = head
-      + '<input id="sync-email" class="form-input" type="email" autocomplete="username" placeholder="メールアドレス" value="' + esc(email) + '" style="margin-top:10px">'
-      + '<input id="sync-pw" class="form-input" type="password" autocomplete="current-password" placeholder="パスワード（6文字以上）" style="margin-top:10px">'
+      + '<input id="sync-email" class="form-input" type="email" autocomplete="username" placeholder="メールアドレス" value="' + esc(email) + '" style="margin-top:var(--s3)">'
+      + '<input id="sync-pw" class="form-input" type="password" autocomplete="current-password" placeholder="パスワード（6文字以上）" style="margin-top:var(--s3)">'
       + '<div class="btn-row"><button class="btn sm primary" onclick="VaSync.auth(\'in\')">ログイン</button>'
       + '<button class="btn sm ghost" onclick="VaSync.auth(\'up\')">新規登録</button>'
       + '<button class="btn sm danger" onclick="VaSync.clearConfig()">同期をやめる</button></div>'
