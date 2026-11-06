@@ -22,7 +22,7 @@ with sync_playwright() as p:
     b=p.chromium.launch(); ctx=b.new_context(viewport={'width':390,'height':844}, service_workers='block'); pg=ctx.new_page()
     errs=[]; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
     pg.route('**/*', lambda r: r.continue_() if r.request.url.startswith('http://localhost') else r.abort())
-    pg.route('**/sync-firebase.js', lambda r: r.fulfill(status=200, body=FAKE, content_type='application/javascript'))
+    pg.route('**/sync-firebase.js*', lambda r: r.fulfill(status=200, body=FAKE, content_type='application/javascript'))
     pg.goto('http://localhost:8765/index.html')
     pg.evaluate("""([d,c])=>{localStorage.setItem('vq_decks',JSON.stringify(d.decks));localStorage.setItem('vq_words',JSON.stringify(d.words));localStorage.setItem('va-firebase-config',JSON.stringify(c));}""",[data,CFG])
     pg.reload(); pg.wait_for_timeout(1800)

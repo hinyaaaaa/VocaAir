@@ -1,5 +1,38 @@
 
 /* ============================================================
+   起動時の安全装置（v1.10.1）
+   1) HTML と app.js のバージョンが食い違っていたら（更新の途中で古い保存分が混ざった状態）、
+      古い保存分を消して1回だけ読み込み直す
+   2) 画面の表示でエラーが起きたら、原因を画面の上に出す（何が起きたか分かるように）
+   ============================================================ */
+const BUILD_ID = '1.10.1';
+(function startupGuard() {
+  const meta = document.querySelector('meta[name="va-build"]');
+  const htmlBuild = meta ? meta.content : '';
+  if (htmlBuild !== BUILD_ID) {
+    let tried = false;
+    try { tried = sessionStorage.getItem('va_heal') === '1'; sessionStorage.setItem('va_heal', '1'); } catch (e) { tried = true; }
+    if (!tried) {
+      (async () => {
+        try { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r => r.unregister())); } catch (e) { /* 続行 */ }
+        try { for (const k of await caches.keys()) if (k.indexOf('va-photos') !== 0) await caches.delete(k); } catch (e) { /* 続行 */ }
+        location.reload();
+      })();
+    }
+  } else { try { sessionStorage.removeItem('va_heal'); } catch (e) { /* 続行 */ } }
+  window.addEventListener('error', (ev) => {
+    if (!ev || !ev.message || (ev.target && ev.target !== window)) return;          // 画像などの読み込み失敗は対象外
+    if (document.getElementById('va-fatal')) return;
+    const box = document.createElement('div');
+    box.id = 'va-fatal'; box.setAttribute('role', 'alert');
+    box.style.cssText = 'position:fixed;left:12px;right:12px;top:calc(8px + env(safe-area-inset-top));z-index:300;padding:12px 16px;border-radius:14px;background:#4a1620;color:#fff;font:13px/1.6 sans-serif;border:1px solid #ff9a9a';
+    const where = (ev.filename || '').split('/').pop() + ':' + (ev.lineno || '?');
+    box.textContent = '画面の表示でエラーが起きました。ページを更新してください。直らない場合は、この文を知らせてください：' + ev.message + '（' + where + '）';
+    document.body.appendChild(box);
+  });
+})();
+
+/* ============================================================
    DATA LAYER
    ============================================================ */
 const LS = {
@@ -43,7 +76,7 @@ const loadWords = () => LS.get('vq_words') || [];
 const saveWords = w => { LS.set('vq_words', w); syncPing(); };
 const loadSettings = () => LS.get('vq_settings') || { dim: 0.45 };
 const saveSettings = s => { LS.set('vq_settings', s); syncPing(); };
-const APP_VERSION = '1.10.0';
+const APP_VERSION = '1.10.1';
 const normalizeKey = s => String(s || '').trim().normalize('NFKC').toLowerCase();
 
 /* ============================================================
@@ -1259,7 +1292,7 @@ setTimeout(() => {
 /* ============================================================
    RENDER ALL + INIT
    ============================================================ */
-function renderAll() { renderHome(); }
+function renderAll() { try { renderHome(); } catch (e) { console.error('[VocaAir] renderHome failed', e); throw e; } }
 
 /* v1.9.0: すでに端末にある単語のID重複を、起動時に修復する（修復した分だけ保存） */
 (function repairWordIdsAtBoot() {

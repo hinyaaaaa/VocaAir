@@ -1,8 +1,9 @@
 /* VocaAir Service Worker — オフライン動作 */
-const VERSION = 'va-shell-v1.10.0';
+const VERSION = 'va-shell-v1.10.1';
 const KEEP = [VERSION, 'va-photos-v2', 'va-runtime-v1'];
 const RUNTIME = 'va-runtime-v1';
-const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'scenery.js', 'scenery-data.js', 'sync-core.js', 'sync-firebase.js', 'sync.js', 'vendor/xlsx.full.min.js',
+const V = '?v=1.10.1'; // index.html が指すファイル名と必ず同じにする（新旧のファイルが混ざらないように）
+const SHELL = ['./', 'index.html', 'styles.css' + V, 'app.js' + V, 'scenery.js' + V, 'scenery-data.js' + V, 'sync-core.js' + V, 'sync-firebase.js' + V, 'sync.js' + V, 'vendor/xlsx.full.min.js',
   'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 const RUNTIME_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
@@ -38,7 +39,7 @@ self.addEventListener('fetch', e => {
     e.respondWith((async () => {
       try {
         const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 3500);
-        const res = await fetch(req, { signal: ctrl.signal }); clearTimeout(t);
+        const res = await fetch(req, { signal: ctrl.signal, cache: 'no-cache' }); clearTimeout(t);
         const c = await caches.open(VERSION); c.put('index.html', res.clone());
         return res;
       } catch (err) {
@@ -53,7 +54,7 @@ self.addEventListener('fetch', e => {
       const c = await caches.open(VERSION);
       try {
         const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 3000);
-        const res = await fetch(req, { signal: ctrl.signal }); clearTimeout(t);
+        const res = await fetch(req, { signal: ctrl.signal, cache: 'no-cache' }); clearTimeout(t);
         if (res.ok) c.put(req, res.clone());
         return res;
       } catch (err) { return (await c.match(req)) || Response.error(); }
