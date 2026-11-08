@@ -239,36 +239,31 @@
   function renderCard() {
     const el = document.getElementById('sync-card');
     if (!el) return;
-    const head = '<div class="card-title">複数端末の同期</div>'
-      + '<p class="set-note" id="sync-status">' + esc(statusLabel()) + '</p>';
+    const head = '<div class="row"><span class="row-l">状態</span><span class="row-v" id="sync-status">' + esc(statusLabel()) + '</span></div>';
     const cfg = loadConfig();
     if (!cfg) {
       const t = readConfig(TEMPER_CONFIG_KEY);
       el.innerHTML = head
-        + '<textarea id="sync-config" class="form-input" rows="4" placeholder="Firebaseの構成（const firebaseConfig = {…}）を貼り付け" style="margin-top:var(--s3)"></textarea>'
-        + '<div class="btn-row"><button class="btn sm primary" onclick="VaSync.saveConfig()">同期を設定する</button>'
-        + (t ? '<button class="btn sm ghost" onclick="VaSync.useTemperConfig()">Temperと同じ設定を使う</button>' : '')
-        + '</div>'
-        + '<p class="form-hint">設定のしかたは SYNC_SETUP.md に書いてあります。Temperで同期を設定済みなら、同じFirebaseをそのまま使えます。</p>';
+        + '<div class="row col"><textarea id="sync-config" class="field" rows="4" placeholder="Firebaseの構成（const firebaseConfig = {…}）を貼り付け"></textarea></div>'
+        + '<div class="row actions"><button class="link" onclick="VaSync.saveConfig()">同期を設定する</button>'
+        + (t ? '<button class="link" onclick="VaSync.useTemperConfig()">Temperと同じ設定を使う</button>' : '') + '</div>'
+        + '<p class="row-note">設定のしかたは SYNC_SETUP.md を見てください。Temperで設定済みなら、同じFirebaseを使えます。</p>';
       return;
     }
     if (user) {
       el.innerHTML = head
-        + '<p class="set-note pre" id="sync-verify"></p>'
-        + '<div class="btn-row"><button class="btn sm primary" onclick="VaSync.syncNow()">いますぐ同期</button>'
-        + '<button class="btn sm ghost" onclick="VaSync.verify()">全件を照合</button></div>'
-        + '<div class="btn-row quiet"><button class="btn sm ghost" onclick="VaSync.signOut()">ログアウト</button>'
-        + '<button class="btn sm danger" onclick="VaSync.clearConfig()">同期をやめる</button></div>';
+        + '<p class="row-note pre" id="sync-verify"></p>'
+        + '<div class="row actions"><button class="link" onclick="VaSync.syncNow()">いますぐ同期</button><button class="link" onclick="VaSync.verify()">全件を照合</button></div>'
+        + '<div class="row actions"><button class="link quiet" onclick="VaSync.signOut()">ログアウト</button><button class="link danger" onclick="VaSync.clearConfig()">同期をやめる</button></div>';
       return;
     }
     const email = lsGet(EMAIL_KEY) || lsGet(TEMPER_EMAIL_KEY) || '';
     el.innerHTML = head
-      + '<input id="sync-email" class="form-input" type="email" autocomplete="username" placeholder="メールアドレス" value="' + esc(email) + '" style="margin-top:var(--s3)">'
-      + '<input id="sync-pw" class="form-input" type="password" autocomplete="current-password" placeholder="パスワード（6文字以上）" style="margin-top:var(--s3)">'
-      + '<div class="btn-row"><button class="btn sm primary" onclick="VaSync.auth(\'in\')">ログイン</button>'
-      + '<button class="btn sm ghost" onclick="VaSync.auth(\'up\')">新規登録</button>'
-      + '<button class="btn sm danger" onclick="VaSync.clearConfig()">同期をやめる</button></div>'
-      + '<p class="form-hint">Temperと同じメールアドレス・パスワードで登録できます（ログインは別々に必要です）。</p>';
+      + '<div class="row col"><input id="sync-email" class="field" type="email" autocomplete="username" placeholder="メールアドレス" value="' + esc(email) + '">'
+      + '<input id="sync-pw" class="field" type="password" autocomplete="current-password" placeholder="パスワード（6文字以上）"></div>'
+      + '<div class="row actions"><button class="link" onclick="VaSync.auth(\'in\')">ログイン</button><button class="link" onclick="VaSync.auth(\'up\')">新規登録</button>'
+      + '<button class="link danger" onclick="VaSync.clearConfig()">同期をやめる</button></div>'
+      + '<p class="row-note">Temperと同じメールアドレス・パスワードで登録できます（ログインは別々に必要です）。</p>';
   }
 
   window.VaSync = {

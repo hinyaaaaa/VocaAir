@@ -1,11 +1,11 @@
 
 /* ============================================================
-   起動時の安全装置（v1.10.2）
+   起動時の安全装置（v1.11.0）
    1) HTML と app.js のバージョンが食い違っていたら（更新の途中で古い保存分が混ざった状態）、
       古い保存分を消して1回だけ読み込み直す
    2) 画面の表示でエラーが起きたら、原因を画面の上に出す（何が起きたか分かるように）
    ============================================================ */
-const BUILD_ID = '1.10.2';
+const BUILD_ID = '1.11.0';
 (function startupGuard() {
   const meta = document.querySelector('meta[name="va-build"]');
   const htmlBuild = meta ? meta.content : '';
@@ -76,7 +76,7 @@ const loadWords = () => LS.get('vq_words') || [];
 const saveWords = w => { LS.set('vq_words', w); syncPing(); };
 const loadSettings = () => LS.get('vq_settings') || { dim: 0.45 };
 const saveSettings = s => { LS.set('vq_settings', s); syncPing(); };
-const APP_VERSION = '1.10.2';
+const APP_VERSION = '1.11.0';
 const normalizeKey = s => String(s || '').trim().normalize('NFKC').toLowerCase();
 
 /* ============================================================
@@ -501,33 +501,41 @@ function hashStr(s) {
   return h;
 }
 
-// per-deck選択中の出題モード: 'due'(復習のみ) または 'random'(ランダムN問)
-const deckModes = {};
-function getMode(deckId) { return deckModes[deckId] || 'due'; }
-
-// per-deck選択中のランダム出題数。0 = 単語帳の全部
-const deckRandomCounts = {};
-function getRandomCount(deckId) {
-  return (typeof deckRandomCounts[deckId] === 'number') ? deckRandomCounts[deckId] : 20;
+/* 単語帳ごとの学習の選択（出題する語・出題数・向き・答え方）は、単語帳そのものに保存する。
+   単語帳は同期の対象なので、別の端末でも同じ選択で続きから学習できる。 */
+const DECK_OPT_DEFAULT = { optMode: 'due', optRand: 20, optDue: 0, optDir: 'm2w', optFmt: 'choice' };
+function getDeckOpt(deckId, key) {
+  const d = loadDecks().find(x => x.id === deckId);
+  const v = d ? d[key] : undefined;
+  return (v === undefined || v === null) ? DECK_OPT_DEFAULT[key] : v;
 }
+function setDeckOpt(deckId, key, val) {
+  const decks = loadDecks();
+  const d = decks.find(x => x.id === deckId);
+  if (!d || d[key] === val) return;
+  d[key] = val;
+  saveDecks(decks);
+}
+function getMode(deckId) { return getDeckOpt(deckId, 'optMode') === 'random' ? 'random' : 'due'; }
+// 「数を決めて出す」の出題数。0 = 単語帳の全部
+function getRandomCount(deckId) { const n = getDeckOpt(deckId, 'optRand'); return (typeof n === 'number' && n >= 0) ? n : 20; }
+// 「復習する語」の出題数。0 = 復習待ちの全部
+function getDueCount(deckId) { const n = getDeckOpt(deckId, 'optDue'); return (typeof n === 'number' && n >= 0) ? n : 0; }
 
-// per-deck選択中の出題方向: 'm2w' = 単語を見て意味を答える／'w2m' = 意味を見て単語を答える
-const deckDirections = {};
 function setDirection(deckId, direction, btn) {
-  deckDirections[deckId] = direction;
+  setDeckOpt(deckId, 'optDir', direction);
   document.querySelectorAll(`#dir-${deckId} .seg-item`).forEach(b => { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
   btn.classList.add('active'); btn.setAttribute('aria-pressed', 'true');
 }
-function getDirection(deckId) { return deckDirections[deckId] || 'm2w'; }
+function getDirection(deckId) { return getDeckOpt(deckId, 'optDir') === 'w2m' ? 'w2m' : 'm2w'; }
 
 // per-deck選択中の回答形式: 'choice' = 4択／'input' = 入力式
-const deckFormats = {};
 function setFormat(deckId, format, btn) {
-  deckFormats[deckId] = format;
+  setDeckOpt(deckId, 'optFmt', format);
   document.querySelectorAll(`#fmt-${deckId} .seg-item`).forEach(b => { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
   btn.classList.add('active'); btn.setAttribute('aria-pressed', 'true');
 }
-function getFormat(deckId) { return deckFormats[deckId] || 'choice'; }
+function getFormat(deckId) { return getDeckOpt(deckId, 'optFmt') === 'input' ? 'input' : 'choice'; }
 
 /* ============================================================
    単語帳の詳細（学習の設定）
@@ -542,12 +550,12 @@ function openBoarding(deckId) {
 }
 
 function setBoardMode(deckId, mode) {
-  deckModes[deckId] = mode;
+  setDeckOpt(deckId, 'optMode', mode);
   renderBoardScreen(deckId);
 }
 
 function setBoardCount(deckId, count) {
-  deckRandomCounts[deckId] = count;
+  setDeckOpt(deckId, getMode(deckId) === 'random' ? 'optRand' : 'optDue', count);
   renderBoardScreen(deckId);
 }
 
@@ -564,12 +572,13 @@ function renderBoardScreen(deckId) {
   const mode = getMode(deckId);
   const direction = getDirection(deckId);
   const format = getFormat(deckId);
-  const count = getRandomCount(deckId);
-
-  const counts = [10, 20, 30, 50];
+  // 出題数: 復習は「復習待ち」の中から、ランダムは単語帳全体から選ぶ
+  const pool = mode === 'due' ? due : total;
+  const count = mode === 'due' ? getDueCount(deckId) : getRandomCount(deckId);
+  const counts = [10, 20, 30, 50].filter(c => c < pool);
   const countPills = counts.map(c =>
     `<button class="count-pill ${count===c?'active':''}" aria-pressed="${count===c}" onclick="setBoardCount(${deckId},${c})">${c}問</button>`
-  ).join('') + `<button class="count-pill ${count===0?'active':''}" aria-pressed="${count===0}" onclick="setBoardCount(${deckId},0)">すべて（${total}問）</button>`;
+  ).join('') + `<button class="count-pill ${(count===0||count>=pool)?'active':''}" aria-pressed="${(count===0||count>=pool)}" onclick="setBoardCount(${deckId},0)">すべて（${pool}問）</button>`;
 
   const dest = getCurrentDestination(deckId);
   const pr = v => `aria-pressed="${v ? 'true' : 'false'}"`;
@@ -587,7 +596,7 @@ function renderBoardScreen(deckId) {
         <button class="seg-item ${mode==='due'?'active':''}" ${pr(mode==='due')} onclick="setBoardMode(${deckId},'due')">復習する語<span class="seg-sub">${due}語</span></button>
         <button class="seg-item ${mode==='random'?'active':''}" ${pr(mode==='random')} onclick="setBoardMode(${deckId},'random')">数を決めて出す<span class="seg-sub">ランダム</span></button>
       </div>
-      ${mode === 'random' ? `<div class="count-row">${countPills}</div>` : ''}
+      ${(mode === 'random' || due > 0) ? `<div class="count-row">${countPills}</div>` : ''}
     </div>
 
     <div class="opt">
@@ -738,7 +747,10 @@ function startQuizDeck(deckId, forceNew) {
 
   let words = loadWords().filter(w => w.deckId === deckId).map(ensureSrsFields);
   if (mode === 'due') {
-    words = words.filter(w => (w.nextDue||0) <= now);
+    // 復習待ちの中で、期限が古いものから選ぶ（出題数を絞った時に、後回しの語が溜まらない）
+    words = words.filter(w => (w.nextDue||0) <= now).sort((a, b) => (a.nextDue||0) - (b.nextDue||0));
+    const dueCount = getDueCount(deckId);
+    if (dueCount > 0) words = words.slice(0, dueCount);
   } else if (mode === 'random') {
     words = shuffle([...words]);
     const count = getRandomCount(deckId);
@@ -992,9 +1004,12 @@ function applyGrade(w, grade) {
   if (res && res.leech) {
     toast(`「${w.word}」は${SRS.leechThreshold}回以上間違えています。意味や例文を見直してみましょう`);
   }
+  // 同じ学習の中で問題が増えないよう、再出題はしない。まだ身についていない語（間違い・うろ覚え）は、
+  // 「いますぐ復習待ち」にして、次に単語帳を開いて学習をはじめた時の最初の出題に回す
   if (res && res.requeue) {
-    const pos = Math.min(qWords.length, qIdx + 1 + res.requeueOffset);
-    qWords.splice(pos, 0, w);
+    const i2 = words.findIndex(x => String(x.id) === String(w.id));
+    w.nextDue = Date.now();
+    if (i2 >= 0) { words[i2].nextDue = w.nextDue; saveWords(words); }
   }
 }
 
@@ -1031,7 +1046,7 @@ function showResult() {
   showScreen('result');
   const pct = qWords.length ? Math.round(qOk / qWords.length * 100) : 0;
   document.getElementById('res-pct').textContent = pct + '%';
-  document.getElementById('res-msg').textContent = pct >= 80 ? 'よくできました。' : 'もう一度、復習しましょう。';
+  document.getElementById('res-msg').textContent = (pct >= 80 ? 'よくできました。' : 'おつかれさまでした。') + (qNg ? `間違えた ${qNg} 問は、次に学習をはじめた時に最初に出ます。` : '');
   document.getElementById('res-ok').textContent = qOk;
   document.getElementById('res-ng').textContent = qNg;
   const avg = qWords.length ? Math.round(qWords.reduce((s,w) => s+(w.interval||1), 0) / qWords.length) : 1;
@@ -1076,27 +1091,27 @@ function handleFile(file) {
 }
 
 function populateImportSheetSelect() {
-  const sel = document.getElementById('import-sheet-select');
-  if (!sel) return;
-  if (!importWorkbook || !Array.isArray(importWorkbook.SheetNames) || !importWorkbook.SheetNames.length) {
-    sel.innerHTML = '<option value="">（シートがありません）</option>';
-    sel.disabled = true;
-    return;
-  }
-  sel.disabled = false;
-  sel.innerHTML = importWorkbook.SheetNames.map((name, index) => `<option value="${index}">${esc((name || '').trim() || `Sheet ${index + 1}`)}</option>`).join('');
-  sel.value = String(importSheetIndex || 0);
+  // Excel の画面下にあるシートの見出し（タブ）と同じ並びで表示する
+  const el = document.getElementById('import-sheet-tabs');
+  if (!el) return;
+  if (!importWorkbook || !Array.isArray(importWorkbook.SheetNames) || !importWorkbook.SheetNames.length) { el.innerHTML = ''; return; }
+  el.innerHTML = importWorkbook.SheetNames.map((name, index) =>
+    `<button type="button" role="tab" class="xl-tab ${index === (importSheetIndex || 0) ? 'on' : ''}" aria-selected="${index === (importSheetIndex || 0)}" onclick="changeImportSheet(${index})">${esc((name || '').trim() || `Sheet${index + 1}`)}</button>`
+  ).join('');
 }
 
 function changeImportSheet(value) {
   importSheetIndex = parseInt(value, 10) || 0;
+  populateImportSheetSelect();
   renderImportSheet(importSheetIndex);
 }
 
+const IMPORT_SHOW_MAX = 500; // 画面に出す行数の上限（取り込みは全行が対象）
 function renderImportSheet(index) {
+  const tbody = document.getElementById('preview-body');
   if (!importWorkbook || !Array.isArray(importWorkbook.SheetNames) || !importWorkbook.SheetNames.length) {
     importData = [];
-    document.getElementById('preview-body').innerHTML = '';
+    tbody.innerHTML = '';
     document.getElementById('preview-count').textContent = '';
     return;
   }
@@ -1104,29 +1119,32 @@ function renderImportSheet(index) {
   const ws = importWorkbook.Sheets[sheetName];
   const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
   importData = [];
-  const tbody = document.getElementById('preview-body');
-  tbody.innerHTML = '';
-  let valid = 0, invalid = 0;
-  // A列=No（無視）／B列=単語／C列=意味／D列=メモ（任意）
+  let valid = 0, invalid = 0, shown = 0, hidden = 0;
+  const html = [];
+  const cell = (v) => {
+    const t = String(v == null ? '' : v);
+    const num = t !== '' && !isNaN(Number(t));
+    return `<td${num ? ' class="n"' : ''}>${esc(t)}</td>`;
+  };
+  // A列=No（無視）／B列=単語／C列=意味／D列=メモ（任意）。行番号は Excel の行番号と同じ
   rows.forEach((row, rowIndex) => {
     const noCell = String(row[0]||'').trim();
     const word = String(row[1]||'').trim();
     const trans = String(row[2]||'').trim();
     const memo = String(row[3]||'').trim();
-    if (!noCell && !word && !trans) return;
-    // ヘッダー行（No / 単語 / 意味）はスキップ
-    if (rowIndex === 0 && (noCell === 'No' || noCell === 'no') && word === '単語' && trans === '意味') return;
-    const ok = !!(word && trans);
-    ok ? valid++ : invalid++;
-    importData.push({ word, trans, memo, ok });
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${esc(word)}</td><td>${esc(trans)}</td><td class="memo">${esc(memo)}</td>
-      <td style="text-align:center">${ok
-        ? '<span class="ok">✓</span>'
-        : '<span class="bad" title="単語・意味が必要">✕</span>'}</td>`;
-    tbody.appendChild(tr);
+    if (!noCell && !word && !trans && !memo) return;
+    // 見出し行（No / 単語 / 意味）は取り込まない
+    const isHeader = rowIndex === 0 && word === '単語' && trans === '意味';
+    const ok = !isHeader && !!(word && trans);
+    if (!isHeader) { ok ? valid++ : invalid++; importData.push({ word, trans, memo, ok }); }
+    if (shown >= IMPORT_SHOW_MAX) { hidden++; return; }
+    shown++;
+    const badge = isHeader ? '<span class="st skip">見出し</span>' : ok ? '<span class="st ok">取込</span>' : '<span class="st bad" title="単語と意味の両方が必要です">不足</span>';
+    html.push(`<tr class="${isHeader ? 'hd' : ok ? '' : 'ng'}"><th scope="row">${rowIndex + 1}</th>${cell(row[0])}${cell(row[1])}${cell(row[2])}${cell(row[3])}<td class="stc">${badge}</td></tr>`);
   });
-  document.getElementById('preview-count').textContent = `${sheetName} / ${valid} 件有効 ／ ${invalid} 件スキップ`;
+  if (hidden) html.push(`<tr class="more"><th scope="row">…</th><td colspan="5">ほか ${hidden} 行（画面には先頭 ${IMPORT_SHOW_MAX} 行まで表示。取り込みは全行が対象です）</td></tr>`);
+  tbody.innerHTML = html.join('');
+  document.getElementById('preview-count').textContent = `${valid} 語を取り込めます` + (invalid ? `／${invalid} 行は単語か意味が空です` : '');
 }
 
 function populateImportDeckSelect() {
@@ -1159,11 +1177,8 @@ function clearImport() {
   document.getElementById('drop-zone').style.display = 'block';
   document.getElementById('file-input').value = '';
   document.getElementById('preview-body').innerHTML = '';
-  const sheetSel = document.getElementById('import-sheet-select');
-  if (sheetSel) {
-    sheetSel.innerHTML = '';
-    sheetSel.disabled = true;
-  }
+  const tabs = document.getElementById('import-sheet-tabs');
+  if (tabs) tabs.innerHTML = '';
 }
 
 /* ============================================================
@@ -1176,27 +1191,28 @@ function clearImport() {
 const DEST_PROGRESS_KEY = 'vq_dest_progress_v2';
 
 function getDeckProgress() { return LS.get(DEST_PROGRESS_KEY) || {}; }
+const _validIdx = n => typeof n === 'number' && isFinite(n) && n >= 0 && n < Scenery.PLACE_COUNT;
+/* 単語帳ごとの「いまの場所」と「次の場所」。単語帳に保存するので、同期で別の端末にも引き継がれる。
+   （v1.10.1 以前に端末だけに保存していた分は、最初に見つけた時に単語帳へ移す） */
 function getDeckDest(deckId) {
-  const p = getDeckProgress();
-  let entry = p[deckId];
-  if (!entry || typeof entry.current !== 'number' || entry.current >= Scenery.PLACE_COUNT || entry.next >= Scenery.PLACE_COUNT) {
-    const current = Scenery.randomPlaceIdx();
-    const next = Scenery.randomPlaceIdx(current);
-    entry = { current, next };
-    p[deckId] = entry;
-    LS.set(DEST_PROGRESS_KEY, p);
-  }
+  const decks = loadDecks();
+  const d = decks.find(x => x.id === deckId);
+  if (d && _validIdx(d.destCur) && _validIdx(d.destNext)) return { current: d.destCur, next: d.destNext };
+  const legacy = getDeckProgress()[deckId];
+  let entry = (legacy && _validIdx(legacy.current) && _validIdx(legacy.next)) ? { current: legacy.current, next: legacy.next } : null;
+  if (!entry) { const current = Scenery.randomPlaceIdx(); entry = { current, next: Scenery.randomPlaceIdx(current) }; }
+  if (d) { d.destCur = entry.current; d.destNext = entry.next; saveDecks(decks); }
   return entry;
 }
 function getCurrentDestination(deckId) { return Scenery.place(getDeckDest(deckId).current); }
 function getNextDestination(deckId) { return Scenery.place(getDeckDest(deckId).next); }
 function advanceDeckLap(deckId) {
-  const p = getDeckProgress();
   const entry = getDeckDest(deckId);
   const newCurrent = entry.next;
   const newNext = Scenery.randomPlaceIdx(newCurrent);
-  p[deckId] = { current: newCurrent, next: newNext };
-  LS.set(DEST_PROGRESS_KEY, p);
+  const decks = loadDecks();
+  const d = decks.find(x => x.id === deckId);
+  if (d) { d.destCur = newCurrent; d.destNext = newNext; saveDecks(decks); }
   Scenery.markVisited(newCurrent);
 }
 /* 背景の風景と、左上の場所表示。どの画面でも、いまの単語帳の場所の風景を出す。
@@ -1250,21 +1266,21 @@ function showDestinationLayer(show) {
 }
 
 function initSettings() {
-  const c = document.getElementById('set-auto'); if (c) c.checked = autoAdvance();
   const ver = document.getElementById('app-version'); if (ver) ver.textContent = 'VocaAir v' + APP_VERSION;
   if (window.VaSync) window.VaSync.renderCard();
   refreshSceneryInfo();
 }
 function refreshSceneryInfo(extra) {
-  const el = document.getElementById('scn-info'); if (!el) return;
-  el.textContent = `収録地点 ${Scenery.PLACE_COUNT.toLocaleString()}か所 ／ オフライン用に保存済み ${Scenery.offlineCount()}枚` + (extra ? '　' + extra : '');
+  const a = document.getElementById('scn-places'), b = document.getElementById('scn-saved');
+  if (a) a.textContent = Scenery.PLACE_COUNT.toLocaleString() + ' か所';
+  if (b) b.textContent = extra || (Scenery.offlineCount() + ' 枚');
 }
 async function downloadScenery() {
   const btn = document.getElementById('scn-pack-btn');
   const n = parseInt(document.getElementById('scn-n').value, 10) || 40;
   if (!navigator.onLine) { toast('オフラインのため保存できません'); return; }
   btn.disabled = true;
-  const r = await Scenery.prefetchPack(n, p => refreshSceneryInfo(`保存中… ${p.saved}/${p.want}`));
+  const r = await Scenery.prefetchPack(n, p => refreshSceneryInfo(`保存中 ${p.saved} / ${p.want}`));
   btn.disabled = false;
   refreshSceneryInfo();
   toast(r.saved ? `${r.saved}枚の景色を保存しました` : '新しく保存できた景色はありませんでした');
@@ -1314,8 +1330,8 @@ ensureAmbientScenery('home');
    設定・単語管理・共通操作
    ============================================================ */
 let qAnsweredAt = 0;
-const autoAdvance = () => { try { return localStorage.getItem('va_auto') !== '0'; } catch (e) { return true; } };
-function setAutoAdvance(on) { try { localStorage.setItem('va_auto', on ? '1' : '0'); } catch (e) {} }
+/* 正解・不正解のあとは、常に自動で次へ進む（設定項目は廃止） */
+const autoAdvance = () => true;
 
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;

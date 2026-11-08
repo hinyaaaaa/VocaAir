@@ -206,10 +206,6 @@ kbd{display:inline-block;min-width:22px;padding:0 6px;margin:0 2px;border:1px so
 select.form-input option{color:#0a1424}
 .form-hint{font-size:13px;color:var(--text-3);margin-top:var(--s3);line-height:1.7}
 .format-guide{padding:var(--s4);margin-bottom:var(--s4)}
-.fmt-table{width:100%;border-collapse:collapse;font-size:14px}
-.fmt-table th,.fmt-table td{padding:var(--s2) var(--s3);border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
-.fmt-table th:first-child,.fmt-table td:first-child,.fmt-table th:nth-child(2),.fmt-table td:nth-child(2){white-space:nowrap}
-.fmt-table th{color:var(--text-2);font-size:12px;font-weight:500}
 .format-guide .form-hint{margin-top:var(--s3)}
 .drop-zone{padding:var(--s6) var(--s4);text-align:center;border-style:dashed;cursor:pointer;margin-bottom:var(--s4);transition:border-color .2s}
 .drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);background:rgba(36,46,60,.92)}
@@ -217,30 +213,50 @@ select.form-input option{color:#0a1424}
 .drop-zone small{display:block;color:var(--text-3)}
 .preview-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s3);font-size:14px}
 .preview-head span+span{font-size:12px;color:var(--text-3)}
-.preview-wrap{max-height:280px;overflow:auto;border:1px solid var(--line);border-radius:var(--r);margin-bottom:var(--s4);background:var(--glass)}
-.preview-table{width:100%;border-collapse:collapse;font-size:14px}
-.preview-table th,.preview-table td{padding:var(--s2) var(--s3);text-align:left;border-bottom:1px solid var(--line)}
-.preview-table th{position:sticky;top:0;background:#12213a;font-size:12px;color:var(--text-2);font-weight:500}
-.preview-table .memo{color:var(--text-3)}.preview-table .ok{color:var(--ok)}.preview-table .bad{color:var(--ng)}
+
+/* Excel の画面に合わせた表（列見出し A B C…・行番号・罫線・シート見出し） */
+.xl{border:1px solid #c6c6c6;border-radius:6px;overflow:hidden;background:#fff;color:#1f1f1f;font-family:'Yu Gothic UI','Meiryo','Hiragino Sans','Segoe UI',Calibri,sans-serif;margin-bottom:var(--s4)}
+.xl-scroll{overflow:auto}.xl-scroll.tall{max-height:320px}
+.xl-grid{border-collapse:collapse;width:100%;font-size:12.5px;line-height:1.35}
+.xl-grid th,.xl-grid td{border:1px solid #d4d4d4;padding:4px 6px;height:24px;text-align:left;white-space:normal;overflow-wrap:break-word;font-weight:400;vertical-align:top}
+.xl-grid td:first-of-type,.xl-grid thead th:nth-child(2){width:38px}
+.xl-grid thead th{position:sticky;top:0;z-index:1;background:#f3f3f3;color:#444;text-align:center;font-size:12px}
+.xl-grid tbody th{background:#f3f3f3;color:#444;text-align:center;font-size:12px;width:30px;padding:4px 2px}
+.xl-grid td.n{text-align:right}
+.xl-grid tr.hd td{font-weight:600;background:#f9f9f9}
+.xl-grid tr.ng td{background:#fdecec}
+.xl-grid tr.more td{color:#666;font-size:12px;white-space:normal}
+.xl-grid .stc{width:50px;white-space:nowrap;text-align:center;border-left:2px solid #bdbdbd}
+.xl-grid thead th.stc{font-size:11px}
+.xl-grid .st{font-size:12px;font-weight:600}.xl-grid .st.ok{color:#107c41}.xl-grid .st.bad{color:#c42b1c}.xl-grid .st.skip{color:#777;font-weight:400}
+.xl-tabs{display:flex;gap:2px;overflow-x:auto;background:#f3f3f3;border-top:1px solid #c6c6c6;padding:0 6px}
+.xl-tab{flex:none;min-height:36px;padding:0 var(--s4);border:0;border-bottom:3px solid transparent;background:transparent;color:#444;font:inherit;font-size:13px;cursor:pointer}
+.xl-tab.on{background:#fff;color:#107c41;font-weight:600;border-bottom-color:#107c41}
 .inline-field{display:flex;gap:var(--s2)}.inline-field .form-input{flex:1}
 
 /* ---------- 設定 ---------- */
 .set-group{margin-bottom:var(--s5)}
 .set-heading{font-size:13px;font-weight:500;letter-spacing:.14em;color:var(--text-2);margin:0 var(--s2) var(--s2);text-shadow:0 1px 6px rgba(0,0,0,.8)}
-.switch-row{display:flex;justify-content:space-between;align-items:center;gap:var(--s4);min-height:48px}
-.switch-row small{display:block;color:var(--text-3);font-size:13px}
-.switch{position:relative;width:52px;height:30px;flex:none}
-.switch input{position:absolute;inset:0;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}
-.switch span{position:absolute;inset:0;border-radius:var(--pill);background:var(--glass-2);border:1px solid var(--line);transition:background .2s;pointer-events:none}
-.switch span::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--text);transition:transform .2s var(--ease)}
-.switch input:checked+span{background:var(--accent)}.switch input:checked+span::after{transform:translateX(22px);background:var(--accent-ink)}
-.switch input:focus-visible+span{outline:3px solid var(--accent);outline-offset:2px}
-.set-row{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);margin-top:var(--s3)}
-.set-row .form-input{width:auto;min-width:112px}
-.set-note{font-size:14px;color:var(--text-2);line-height:1.7}
-.set-note.pre{white-space:pre-line;margin-top:var(--s2)}
-.btn-row.quiet{margin-top:var(--s2)}
-.btn-row.quiet .btn{min-height:44px;font-size:13px}
+.list{border-radius:var(--r-l);background:var(--glass);border:1px solid var(--line);overflow:hidden}
+.row{display:flex;align-items:center;justify-content:space-between;gap:var(--s4);min-height:52px;padding:var(--s2) var(--s4)}
+.row+.row,.row-note+.row,.row+.row-note{border-top:1px solid var(--line)}
+.row-l{font-size:16px;color:var(--text)}
+.row-v{font-size:15px;color:var(--text-2);text-align:right;overflow-wrap:anywhere}
+.row.col{flex-direction:column;align-items:stretch;justify-content:center;gap:var(--s2);padding-top:var(--s3);padding-bottom:var(--s3)}
+.row.actions{justify-content:flex-start;gap:var(--s5);flex-wrap:wrap}
+.row-note{padding:var(--s3) var(--s4);font-size:13px;line-height:1.7;color:var(--text-3)}
+.row-note:empty{display:none}.row-note.pre{white-space:pre-line;color:var(--text-2)}
+.link{min-height:44px;padding:0;border:0;background:none;color:var(--accent);font:inherit;font-size:15px;cursor:pointer}
+.link:hover{text-decoration:underline;text-underline-offset:4px}
+.link:disabled{opacity:.5;cursor:default}
+.link.quiet{color:var(--text-2)}.link.danger{color:var(--ng)}
+.link:focus-visible,.sel:focus-visible,.field:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px}
+.sel{min-height:44px;padding:0 var(--s2);border:0;background:transparent;color:var(--accent);font:inherit;font-size:15px;text-align:right;cursor:pointer}
+.sel option{color:#0a1424}
+.field{width:100%;min-height:44px;padding:var(--s2) var(--s3);border-radius:var(--r);border:1px solid var(--line);background:rgba(255,255,255,.07);color:var(--text);font:inherit;font-size:15px;outline:0;resize:vertical}
+.field:focus{border-color:var(--accent)}
+.set-foot{margin:var(--s2) var(--s2) 0;font-size:13px;line-height:1.7;color:var(--text-3)}
+.set-version{text-align:center;font:12px var(--mono);color:var(--text-3);margin:var(--s5) 0 0}
 
 /* ---------- 単語の管理 ---------- */
 .word-tools{display:flex;gap:var(--s3);margin:var(--s4) 0}

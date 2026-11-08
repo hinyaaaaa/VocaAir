@@ -6,6 +6,13 @@
 
 ## 変更履歴
 
+- **v1.11.0** 学習の仕組みと設定・取り込み画面の見直し
+  - 学習中に問題数が増えない: セッション内の再出題（`applyGrade` の差し込み）を廃止。間違い・うろ覚えの語は `nextDue = 今` にして、次に学習をはじめた時の最初の出題に回す
+  - 復習（「復習する語」）でも出題数を選べる（10/20/30/50/すべて。期限が古い語から選ぶ）。`getDueCount`
+  - 学習状況の同期: 単語ごとの学習状態（間隔・次回日など）は従来から同期されていた。今回、単語帳ごとの「いまの場所/次の場所」（`destCur`/`destNext`）と学習の選択（`optMode`/`optRand`/`optDue`/`optDir`/`optFmt`）を **単語帳の文書に載せて** 同期するようにした（`getDeckOpt`/`setDeckOpt`）。端末だけにあった `vq_dest_progress_v2` は、最初に見つけた時に単語帳へ移す
+  - 「自動で次へ進む」は常にオン（設定項目と `setAutoAdvance` を廃止）
+  - 設定画面を、罫線で区切った行の一覧に整理（ボタンの塊と長い説明を減らした）
+  - 取り込み: 書き方の例とプレビューを Excel の見た目（列 A〜D・行番号・罫線・シート見出し）に変更。行番号は Excel と同じ。1行目の見出し（B=単語 / C=意味）はNoの有無にかかわらず取り込まない
 - **v1.10.2** 「画面の表示でエラーが起きました … undefined is not iterable（app.js:1295）」の修正。**原因を特定した**
   - 原因: リポジトリに `scenery-data.js`（景色の基準地点248件）が入っておらず、地点が0件のまま `Scenery.place()` が `ANCHORS[NaN]` を分解して落ちた（`renderHome` → `getCurrentDestination`）。同様に `manifest.webmanifest` / `vendor/xlsx.full.min.js` / `firestore.rules` / `SYNC_SETUP.md` も未登録だった
   - `scenery-data.js` を再作成（248地点。風景写真が取れる自然・名所中心。都市写真は人物・乗り物が混ざりやすいので絞った）。`manifest.webmanifest`・`firestore.rules`（Temper と同一）・`SYNC_SETUP.md`・`vendor/xlsx.full.min.js` も追加
