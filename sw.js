@@ -1,8 +1,8 @@
 /* VocaAir Service Worker — オフライン動作 */
-const VERSION = 'va-shell-v1.10.1';
+const VERSION = 'va-shell-v1.10.2';
 const KEEP = [VERSION, 'va-photos-v2', 'va-runtime-v1'];
 const RUNTIME = 'va-runtime-v1';
-const V = '?v=1.10.1'; // index.html が指すファイル名と必ず同じにする（新旧のファイルが混ざらないように）
+const V = '?v=1.10.2'; // index.html が指すファイル名と必ず同じにする（新旧のファイルが混ざらないように）
 const SHELL = ['./', 'index.html', 'styles.css' + V, 'app.js' + V, 'scenery.js' + V, 'scenery-data.js' + V, 'sync-core.js' + V, 'sync-firebase.js' + V, 'sync.js' + V, 'vendor/xlsx.full.min.js',
   'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 const RUNTIME_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];

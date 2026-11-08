@@ -6,6 +6,11 @@
 
 ## 変更履歴
 
+- **v1.10.2** 「画面の表示でエラーが起きました … undefined is not iterable（app.js:1295）」の修正。**原因を特定した**
+  - 原因: リポジトリに `scenery-data.js`（景色の基準地点248件）が入っておらず、地点が0件のまま `Scenery.place()` が `ANCHORS[NaN]` を分解して落ちた（`renderHome` → `getCurrentDestination`）。同様に `manifest.webmanifest` / `vendor/xlsx.full.min.js` / `firestore.rules` / `SYNC_SETUP.md` も未登録だった
+  - `scenery-data.js` を再作成（248地点。風景写真が取れる自然・名所中心。都市写真は人物・乗り物が混ざりやすいので絞った）。`manifest.webmanifest`・`firestore.rules`（Temper と同一）・`SYNC_SETUP.md`・`vendor/xlsx.full.min.js` も追加
+  - `scenery.js`: 地点データが読めなかった場合でも落ちないよう、5地点のフォールバックを持たせた
+  - `vendor/xlsx.full.min.js` は SheetJS **0.18.5**（npm 最終版）。0.20.3 を使う場合は vendor/README.md の手順で差し替える
 - **v1.10.1** 更新直後に画面が崩れる・単語帳が出ない、という報告への対策（原因は未特定。クリーンな更新では再現せず）
   - HTML が読み込むファイル名に版を付けた（`app.js?v=1.10.1` など。`sw.js` の `SHELL` と必ず同じにする）。新旧のファイルが混ざらない
   - `index.html` の `<meta name="va-build">` と `app.js` の `BUILD_ID` が食い違ったら、古い保存分（サービスワーカーとキャッシュ。景色の写真は残す）を消して1回だけ読み込み直す
@@ -63,7 +68,7 @@ sw.js                 … Service Worker（オフライン動作）
 manifest.webmanifest  … ホーム画面追加用。icons/ にアイコン
 ```
 
-外部依存: `vendor/xlsx.full.min.js`（SheetJS 0.20.3 を同梱, Excelインポート用。詳細は vendor/README.md）、Firebase SDK 11.0.2（gstatic。同期を設定したときだけ読み込む。Temper と同じ版に揃えること）、Google Fonts（Zen Old Mincho / Space Mono）。いずれもSWが初回取得後にキャッシュする。
+外部依存: `vendor/xlsx.full.min.js`（SheetJS 0.18.5 を同梱（v1.10.2 で復旧。0.20.3 に差し替え可）, Excelインポート用。詳細は vendor/README.md）、Firebase SDK 11.0.2（gstatic。同期を設定したときだけ読み込む。Temper と同じ版に揃えること）、Google Fonts（Zen Old Mincho / Space Mono）。いずれもSWが初回取得後にキャッシュする。
 
 ## 3. デザインシステム（styles.css、v1.10.0 で全面整理）
 

@@ -11,7 +11,9 @@
 (function () {
   'use strict';
 
-  const ANCHORS = window.SCENERY_ANCHORS || [];
+  // scenery-data.js が読み込めなかった時も画面が落ちないよう、最小限の地点を持っておく
+  const FALLBACK_ANCHORS = [['京都', 'JP', 35.01, 135.77], ['ツェルマット', 'CH', 46.02, 7.75], ['ウユニ塩原', 'BO', -20.13, -67.49], ['ミルフォード・サウンド', 'NZ', -44.67, 167.93], ['ヴィーク', 'IS', 63.42, -19.01]];
+  const ANCHORS = (Array.isArray(window.SCENERY_ANCHORS) && window.SCENERY_ANCHORS.length) ? window.SCENERY_ANCHORS : FALLBACK_ANCHORS;
   const THUMB_W = 1920;                       // Wikimediaの標準サムネイル幅
   const API = 'https://commons.wikimedia.org/w/api.php';
   const PHOTO_CACHE = 'va-photos-v2';          // v1.9.1: 旧基準（風景以外が混ざった）の保存分は引き継がない
